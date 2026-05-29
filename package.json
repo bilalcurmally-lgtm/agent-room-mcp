@@ -1,0 +1,26 @@
+{
+  "name": "@billu/agent-room-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local file-backed MCP room for coordinating multiple coding agents across projects.",
+  "bin": {
+    "agent-room-mcp": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}
+
