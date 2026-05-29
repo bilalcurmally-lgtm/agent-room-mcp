@@ -65,5 +65,39 @@ describe("dashboard server", () => {
     expect(html).toContain("Agent Room");
     expect(html).toContain("Tell the room");
     expect(html).toContain("Project");
+    expect(html).toContain("Create task");
+    expect(html).toContain("Record decision");
+  });
+
+  it("lets the user create tasks and decisions from the dashboard API", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    await fetch(`${server.url}/api/tasks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Implement sidebar",
+        body: "Codex owns implementation.",
+        owner: "codex",
+        project: "dashboard-v2"
+      })
+    });
+
+    await fetch(`${server.url}/api/decisions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Human is lead",
+        decision: "User decisions override agent debate.",
+        rationale: "Prevents drift.",
+        project: "dashboard-v2"
+      })
+    });
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=dashboard-v2`).then((res) => res.json());
+    expect(snapshot.tasks).toMatchObject([{ title: "Implement sidebar", owner: "codex" }]);
+    expect(snapshot.decisions).toMatchObject([{ title: "Human is lead" }]);
   });
 });

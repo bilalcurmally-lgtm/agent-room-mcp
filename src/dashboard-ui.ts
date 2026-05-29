@@ -64,8 +64,20 @@ export const dashboardHtml = `<!doctype html>
       <div id="agents" class="stack"></div>
       <h3>Tasks</h3>
       <div id="tasks" class="stack"></div>
+      <form id="task-form" class="composer">
+        <input id="task-title" placeholder="Task title" />
+        <textarea id="task-body" rows="2" placeholder="Task details"></textarea>
+        <input id="task-owner" placeholder="Owner (optional)" />
+        <button type="submit">Create task</button>
+      </form>
       <h3>Decisions</h3>
       <div id="decisions" class="stack"></div>
+      <form id="decision-form" class="composer">
+        <input id="decision-title" placeholder="Decision title" />
+        <textarea id="decision-body" rows="2" placeholder="Decision"></textarea>
+        <textarea id="decision-rationale" rows="2" placeholder="Rationale"></textarea>
+        <button type="submit">Record decision</button>
+      </form>
     </aside>
   </main>
   <script>
@@ -77,6 +89,14 @@ export const dashboardHtml = `<!doctype html>
     const decisions = document.getElementById("decisions");
     const messageForm = document.getElementById("message-form");
     const messageInput = document.getElementById("message");
+    const taskForm = document.getElementById("task-form");
+    const taskTitle = document.getElementById("task-title");
+    const taskBody = document.getElementById("task-body");
+    const taskOwner = document.getElementById("task-owner");
+    const decisionForm = document.getElementById("decision-form");
+    const decisionTitle = document.getElementById("decision-title");
+    const decisionBody = document.getElementById("decision-body");
+    const decisionRationale = document.getElementById("decision-rationale");
     const refreshButton = document.getElementById("refresh");
 
     function projectForWrite() {
@@ -165,6 +185,40 @@ export const dashboardHtml = `<!doctype html>
         body: JSON.stringify({ body, project: projectForWrite() })
       });
       messageInput.value = "";
+      await loadSnapshot();
+    });
+
+    taskForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const title = taskTitle.value.trim();
+      const body = taskBody.value.trim();
+      const owner = taskOwner.value.trim();
+      if (!title || !body) return;
+      await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, body, owner: owner || undefined, project: projectForWrite() })
+      });
+      taskTitle.value = "";
+      taskBody.value = "";
+      taskOwner.value = "";
+      await loadSnapshot();
+    });
+
+    decisionForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const title = decisionTitle.value.trim();
+      const decision = decisionBody.value.trim();
+      const rationale = decisionRationale.value.trim();
+      if (!title || !decision || !rationale) return;
+      await fetch("/api/decisions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, decision, rationale, project: projectForWrite() })
+      });
+      decisionTitle.value = "";
+      decisionBody.value = "";
+      decisionRationale.value = "";
       await loadSnapshot();
     });
 
