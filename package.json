@@ -5,12 +5,14 @@
   "type": "module",
   "description": "Local file-backed MCP room for coordinating multiple coding agents across projects.",
   "bin": {
-    "agent-room-mcp": "./dist/server.js"
+    "agent-room-mcp": "./dist/server.js",
+    "agent-room-dashboard": "./dist/dashboard.js"
   },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "dev": "tsx src/server.ts"
+    "dev": "tsx src/server.ts",
+    "dashboard": "tsx src/dashboard.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -23,4 +25,3 @@
     "vitest": "^4.0.15"
   }
 }
-

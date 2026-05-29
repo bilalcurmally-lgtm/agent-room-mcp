@@ -174,6 +174,10 @@ export class AgentRoomStore {
     return filterVisibleMessages(messages, input);
   }
 
+  async listMessages(): Promise<RoomMessage[]> {
+    return this.readJsonl<RoomMessage>("messages.jsonl");
+  }
+
   async registerAgent(input: RegisterAgentInput): Promise<RoomAgent> {
     validateText("agent", input.agent);
     validateText("displayName", input.displayName);
@@ -312,6 +316,14 @@ export class AgentRoomStore {
 
     const sorted = [...projects].sort((a, b) => a.localeCompare(b));
     return hasUnsorted ? [...sorted, "unsorted"] : sorted;
+  }
+
+  async listDecisions(): Promise<RoomDecision[]> {
+    return this.readDecisions();
+  }
+
+  async listAgents(): Promise<RoomAgent[]> {
+    return this.readAgents();
   }
 
   async updateTask(input: UpdateTaskInput): Promise<RoomTask> {
