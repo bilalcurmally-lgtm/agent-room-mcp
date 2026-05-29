@@ -74,7 +74,8 @@ Verification:
 
 - `npm test` passes.
 - `npm run build` passes.
-- The command is globally linked with `npm link`.
+- The MCP command can run after `npm link`.
+- The dashboard command can run with `agent-room-dashboard --room D:\projects\.agent-room`.
 
 ## 5. Architecture
 
@@ -110,6 +111,19 @@ Room path resolution:
 
 The server uses stdio transport so it can be configured in MCP clients like Cursor, Claude Code,
 Codex environments that support MCP, and similar agent shells.
+
+### Local Dashboard
+
+`src/dashboard.ts` serves a local browser control room backed by the same store.
+
+User workflow:
+
+1. Open the dashboard.
+2. Select `All Projects`, `Unsorted`, or a specific project.
+3. Post instructions through "Tell the room".
+4. Create tasks or record decisions without touching JSON files.
+5. Watch agents, messages, tasks, and decisions update from the shared room.
+6. Agents continue to check in via MCP using the same project value.
 
 ## 6. Collaboration Protocol
 
@@ -170,9 +184,11 @@ Rules:
 
 ### R6. Human Dashboard
 
-- Optional local web UI for messages, tasks, and decisions.
-- Read-only by default at first.
-- Later add controlled actions for task status and decision search.
+- DONE: local browser dashboard for messages, agents, tasks, and decisions.
+- DONE: project picker with `All Projects`, `Unsorted`, and discovered projects.
+- DONE: "Tell the room" form that posts as `user`.
+- DONE: controlled actions for creating tasks and recording decisions.
+- Later add task status editing, decision search, and richer agent presence.
 
 ## 8. Review Questions
 
