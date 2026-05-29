@@ -87,6 +87,34 @@ export function isDirectRun(moduleUrl: string, argv1: string | undefined): boole
   return resolve(fileURLToPath(moduleUrl)) === resolve(argv1);
 }
 
+export interface BrowserLaunch {
+  command: string;
+  args: string[];
+  windowsHide?: boolean;
+}
+
+export function createBrowserLaunch(url: string, platform: NodeJS.Platform = process.platform): BrowserLaunch {
+  if (platform === "win32") {
+    return {
+      command: "cmd",
+      args: ["/c", "start", "", "msedge", `--app=${url}`, "--new-window"],
+      windowsHide: true
+    };
+  }
+
+  if (platform === "darwin") {
+    return {
+      command: "open",
+      args: ["-na", "Google Chrome", "--args", `--app=${url}`, "--new-window"]
+    };
+  }
+
+  return {
+    command: "xdg-open",
+    args: [url]
+  };
+}
+
 async function routeRequest(
   store: AgentRoomStore,
   request: IncomingMessage,
@@ -223,13 +251,12 @@ async function main(): Promise<void> {
 }
 
 function openBrowser(url: string): void {
-  if (process.platform === "win32") {
-    spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-    return;
-  }
-
-  const command = process.platform === "darwin" ? "open" : "xdg-open";
-  spawn(command, [url], { detached: true, stdio: "ignore" }).unref();
+  const launch = createBrowserLaunch(url);
+  spawn(launch.command, launch.args, {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: launch.windowsHide
+  }).unref();
 }
 
 if (isDirectRun(import.meta.url, process.argv[1])) {

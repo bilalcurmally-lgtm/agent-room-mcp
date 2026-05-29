@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgentRoomStore } from "../src/store.js";
-import { resolveDashboardOptions, startDashboardServer } from "../src/dashboard.js";
+import { createBrowserLaunch, resolveDashboardOptions, startDashboardServer } from "../src/dashboard.js";
 
 const servers: Array<{ close: () => Promise<void> }> = [];
 
@@ -21,6 +21,14 @@ describe("dashboard server", () => {
 
     expect(resolveDashboardOptions([], { AGENT_ROOM_DIR: "env-room" })).toMatchObject({
       roomDir: "env-room"
+    });
+  });
+
+  it("launches the dashboard in a dedicated browser window on Windows", () => {
+    expect(createBrowserLaunch("http://127.0.0.1:4777", "win32")).toEqual({
+      command: "cmd",
+      args: ["/c", "start", "", "msedge", "--app=http://127.0.0.1:4777", "--new-window"],
+      windowsHide: true
     });
   });
 

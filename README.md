@@ -39,9 +39,10 @@ After `npm link`, the global command is:
 agent-room-dashboard --room D:\projects\.agent-room
 ```
 
-The dashboard opens on localhost and gives you a project picker, room feed, agent list, task list,
-decision list, and a "Tell the room" box. Use `--no-open` if you want it to print the URL without
-opening a browser.
+The dashboard opens on localhost in a dedicated browser-style app window where possible, so other
+agents opening their own localhost previews are less likely to replace your room tab. It gives you a
+project picker, room feed, agent list, task list, decision list, and a "Tell the room" box. Use
+`--no-open` if you want it to print the URL without opening a browser.
 
 ## MCP Client Config
 
