@@ -24,6 +24,25 @@ After `npm link`, the global command is:
 agent-room-mcp --room D:\projects\.agent-room
 ```
 
+## Dashboard
+
+Run the local human control room:
+
+```powershell
+npm run build
+node dist/dashboard.js --room D:\projects\.agent-room
+```
+
+After `npm link`, the global command is:
+
+```powershell
+agent-room-dashboard --room D:\projects\.agent-room
+```
+
+The dashboard opens on localhost and gives you a project picker, room feed, agent list, task list,
+decision list, and a "Tell the room" box. Use `--no-open` if you want it to print the URL without
+opening a browser.
+
 ## MCP Client Config
 
 Use the same room path for every agent/client that should share a room.

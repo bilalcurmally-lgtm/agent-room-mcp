@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { AddressInfo } from "node:net";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { AgentRoomStore, type RoomDecision, type RoomMessage, type RoomTask } from "./store.js";
 import { dashboardHtml } from "./dashboard-ui.js";
 
@@ -61,6 +64,27 @@ export async function startDashboardServer(options: DashboardOptions): Promise<D
         });
       })
   };
+}
+
+export function resolveDashboardOptions(args: readonly string[], env: NodeJS.ProcessEnv): DashboardOptions {
+  const explicitRoomIndex = args.indexOf("--room");
+  const roomDir = explicitRoomIndex >= 0 ? args[explicitRoomIndex + 1] : env.AGENT_ROOM_DIR ?? ".agent-room";
+  if (!roomDir) throw new Error("--room requires a directory path");
+
+  const explicitPortIndex = args.indexOf("--port");
+  const port = explicitPortIndex >= 0 ? Number(args[explicitPortIndex + 1]) : 4777;
+  if (!Number.isInteger(port) || port <= 0) throw new Error("--port requires a positive integer");
+
+  return {
+    roomDir,
+    port,
+    openBrowser: !args.includes("--no-open")
+  };
+}
+
+export function isDirectRun(moduleUrl: string, argv1: string | undefined): boolean {
+  if (!argv1) return false;
+  return resolve(fileURLToPath(moduleUrl)) === resolve(argv1);
 }
 
 async function routeRequest(
@@ -189,4 +213,28 @@ class HttpError extends Error {
   ) {
     super(message);
   }
+}
+
+async function main(): Promise<void> {
+  const options = resolveDashboardOptions(process.argv.slice(2), process.env);
+  const server = await startDashboardServer(options);
+  console.log(`Agent Room dashboard: ${server.url}`);
+  if (options.openBrowser) openBrowser(server.url);
+}
+
+function openBrowser(url: string): void {
+  if (process.platform === "win32") {
+    spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    return;
+  }
+
+  const command = process.platform === "darwin" ? "open" : "xdg-open";
+  spawn(command, [url], { detached: true, stdio: "ignore" }).unref();
+}
+
+if (isDirectRun(import.meta.url, process.argv[1])) {
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exit(1);
+  });
 }

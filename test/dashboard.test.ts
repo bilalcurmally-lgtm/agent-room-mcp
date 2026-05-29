@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgentRoomStore } from "../src/store.js";
-import { startDashboardServer } from "../src/dashboard.js";
+import { resolveDashboardOptions, startDashboardServer } from "../src/dashboard.js";
 
 const servers: Array<{ close: () => Promise<void> }> = [];
 
@@ -13,6 +13,17 @@ afterEach(async () => {
 });
 
 describe("dashboard server", () => {
+  it("resolves dashboard CLI options", () => {
+    expect(resolveDashboardOptions(["--room", "D:\\projects\\.agent-room", "--port", "4777"], {})).toMatchObject({
+      roomDir: "D:\\projects\\.agent-room",
+      port: 4777
+    });
+
+    expect(resolveDashboardOptions([], { AGENT_ROOM_DIR: "env-room" })).toMatchObject({
+      roomDir: "env-room"
+    });
+  });
+
   it("returns a project-scoped snapshot", async () => {
     const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
     const store = await AgentRoomStore.open(roomDir);
