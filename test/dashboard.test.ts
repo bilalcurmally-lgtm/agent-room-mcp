@@ -54,4 +54,16 @@ describe("dashboard server", () => {
     const snapshot = await fetch(`${server.url}/api/snapshot?project=dashboard-v2`).then((res) => res.json());
     expect(snapshot.messages).toMatchObject([{ from: "user", to: "all", body: "Codex implement, Opus review." }]);
   });
+
+  it("serves a human-friendly control room page", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const html = await fetch(server.url).then((res) => res.text());
+
+    expect(html).toContain("Agent Room");
+    expect(html).toContain("Tell the room");
+    expect(html).toContain("Project");
+  });
 });

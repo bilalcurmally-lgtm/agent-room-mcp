@@ -2,6 +2,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { AddressInfo } from "node:net";
 import { AgentRoomStore, type RoomDecision, type RoomMessage, type RoomTask } from "./store.js";
+import { dashboardHtml } from "./dashboard-ui.js";
 
 export interface DashboardOptions {
   roomDir: string;
@@ -23,12 +24,6 @@ interface Snapshot {
   decisions: RoomDecision[];
   agents: Array<{ id: string; displayName?: string; role?: string; lastReadMessageId?: string }>;
 }
-
-const dashboardHtml = `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Agent Room</title></head>
-<body><h1>Agent Room</h1></body>
-</html>`;
 
 export async function startDashboardServer(options: DashboardOptions): Promise<DashboardServer> {
   const host = options.host ?? "127.0.0.1";
