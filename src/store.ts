@@ -300,6 +300,20 @@ export class AgentRoomStore {
     });
   }
 
+  async listProjects(): Promise<string[]> {
+    const state = await this.readState();
+    const projects = new Set<string>();
+    let hasUnsorted = false;
+
+    for (const item of [...state.messages, ...state.tasks, ...state.decisions]) {
+      if (item.project) projects.add(item.project);
+      else hasUnsorted = true;
+    }
+
+    const sorted = [...projects].sort((a, b) => a.localeCompare(b));
+    return hasUnsorted ? [...sorted, "unsorted"] : sorted;
+  }
+
   async updateTask(input: UpdateTaskInput): Promise<RoomTask> {
     validateText("note", input.note);
     validateText("by", input.by);

@@ -221,6 +221,21 @@ describe("AgentRoomStore", () => {
     await store.markMessagesRead({ agent: "codex" });
     expect((await store.checkIn({ agent: "codex" })).unreadMessages).toEqual([]);
   });
+
+  it("lists projects from messages, tasks, and decisions with unsorted fallback", async () => {
+    const store = await makeStore();
+    await store.postMessage(message({ from: "user", to: "all", topic: "Global", project: "dashboard-v2" }));
+    await store.createTask(taskInput({ title: "API work", project: "agent-room" }));
+    await store.recordDecision({
+      title: "Use local dashboard",
+      decision: "Dashboard runs locally.",
+      rationale: "Least setup.",
+      project: "dashboard-v2"
+    });
+    await store.postMessage(message({ from: "opus", to: "codex", topic: "No project" }));
+
+    expect(await store.listProjects()).toEqual(["agent-room", "dashboard-v2", "unsorted"]);
+  });
 });
 
 async function makeStore(): Promise<AgentRoomStore> {
