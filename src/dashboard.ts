@@ -25,7 +25,14 @@ interface Snapshot {
   messages: RoomMessage[];
   tasks: RoomTask[];
   decisions: RoomDecision[];
-  agents: Array<{ id: string; displayName?: string; role?: string; lastReadMessageId?: string }>;
+  agents: Array<{
+    id: string;
+    displayName?: string;
+    role?: string;
+    lastReadMessageId?: string;
+    registeredAt: string;
+    updatedAt: string;
+  }>;
 }
 
 export async function startDashboardServer(options: DashboardOptions): Promise<DashboardServer> {
@@ -189,7 +196,14 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string): P
     messages: filterProject(messages, selectedProject),
     tasks: filterProject(tasks, selectedProject),
     decisions: filterProject(decisions, selectedProject),
-    agents: agents.map(({ id, displayName, role, lastReadMessageId }) => ({ id, displayName, role, lastReadMessageId }))
+    agents: agents.map(({ id, displayName, role, lastReadMessageId, registeredAt, updatedAt }) => ({
+      id,
+      displayName,
+      role,
+      lastReadMessageId,
+      registeredAt,
+      updatedAt
+    }))
   };
 }
 

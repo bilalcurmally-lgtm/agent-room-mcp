@@ -49,6 +49,7 @@ export const dashboardHtml = `<!doctype html>
     <strong>Agent Room</strong>
     <label>Project <select id="project"></select></label>
     <button id="refresh" type="button" title="Refresh">↻</button>
+    <span class="meta">Your local time</span>
   </header>
   <main>
     <section>
@@ -103,6 +104,20 @@ export const dashboardHtml = `<!doctype html>
       return selectedProject === "all" || selectedProject === "unsorted" ? undefined : selectedProject;
     }
 
+    function formatTimestamp(value) {
+      if (!value) return "No timestamp";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
     function setEmpty(container, text) {
       container.replaceChildren();
       const item = document.createElement("div");
@@ -143,22 +158,34 @@ export const dashboardHtml = `<!doctype html>
       renderSelect(snapshot.projects || []);
 
       feed.replaceChildren(...snapshot.messages.map((message) =>
-        card("message", message.from + " → " + message.to + " · " + message.topic, message.body)
+        card(
+          "message",
+          formatTimestamp(message.time) + " · " + message.from + " → " + message.to + " · " + message.topic,
+          message.body
+        )
       ));
       if (!snapshot.messages.length) setEmpty(feed, "No messages yet.");
 
       agents.replaceChildren(...snapshot.agents.map((agent) =>
-        card("agent", agent.id, agent.role || agent.displayName || "Registered agent")
+        card(
+          "agent",
+          agent.id,
+          (agent.role || agent.displayName || "Registered agent") + " · updated " + formatTimestamp(agent.updatedAt)
+        )
       ));
       if (!snapshot.agents.length) setEmpty(agents, "No agents checked in yet.");
 
       tasks.replaceChildren(...snapshot.tasks.map((task) =>
-        card("task", task.status + (task.owner ? " · " + task.owner : ""), task.title)
+        card(
+          "task",
+          formatTimestamp(task.updatedAt) + " · " + task.status + (task.owner ? " · " + task.owner : ""),
+          task.title
+        )
       ));
       if (!snapshot.tasks.length) setEmpty(tasks, "No tasks yet.");
 
       decisions.replaceChildren(...snapshot.decisions.map((decision) =>
-        card("decision", decision.title, decision.decision)
+        card("decision", formatTimestamp(decision.time) + " · " + decision.title, decision.decision)
       ));
       if (!snapshot.decisions.length) setEmpty(decisions, "No decisions yet.");
     }

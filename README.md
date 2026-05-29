@@ -44,6 +44,8 @@ agents opening their own localhost previews are less likely to replace your room
 project picker, room feed, agent list, task list, decision list, and a "Tell the room" box. Use
 `--no-open` if you want it to print the URL without opening a browser.
 
+For a plain-English walkthrough, read [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+
 ## MCP Client Config
 
 Use the same room path for every agent/client that should share a room.

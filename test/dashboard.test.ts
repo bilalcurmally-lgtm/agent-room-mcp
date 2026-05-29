@@ -86,6 +86,8 @@ describe("dashboard server", () => {
     expect(html).toContain("Project");
     expect(html).toContain("Create task");
     expect(html).toContain("Record decision");
+    expect(html).toContain("formatTimestamp");
+    expect(html).toContain("Your local time");
   });
 
   it("lets the user create tasks and decisions from the dashboard API", async () => {
