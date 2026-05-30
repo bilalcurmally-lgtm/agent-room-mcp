@@ -119,7 +119,14 @@ export interface ListTasksInput {
 export interface UpdateTaskInput {
   taskId: string;
   status: TaskStatus;
+  owner?: AgentId;
   note?: string;
+  by?: AgentId;
+}
+
+export interface AppendTaskNoteInput {
+  taskId: string;
+  body: string;
   by?: AgentId;
 }
 
@@ -388,6 +395,7 @@ export class AgentRoomStore {
   }
 
   async updateTask(input: UpdateTaskInput): Promise<RoomTask> {
+    validateText("owner", input.owner);
     validateText("note", input.note);
     validateText("by", input.by);
 
@@ -395,6 +403,7 @@ export class AgentRoomStore {
       const tasks = await this.readTasks();
       const task = findTask(tasks, input.taskId);
       task.status = input.status;
+      if (input.owner !== undefined) task.owner = input.owner;
       task.updatedAt = now();
       if (input.note) {
         task.notes.push({
@@ -403,6 +412,24 @@ export class AgentRoomStore {
           body: input.note
         });
       }
+      await this.writeTasks(tasks);
+      return task;
+    });
+  }
+
+  async appendTaskNote(input: AppendTaskNoteInput): Promise<RoomTask> {
+    validateText("body", input.body);
+    validateText("by", input.by);
+
+    return this.withExclusiveWrite(async () => {
+      const tasks = await this.readTasks();
+      const task = findTask(tasks, input.taskId);
+      task.updatedAt = now();
+      task.notes.push({
+        at: task.updatedAt,
+        by: input.by ?? "system",
+        body: input.body
+      });
       await this.writeTasks(tasks);
       return task;
     });

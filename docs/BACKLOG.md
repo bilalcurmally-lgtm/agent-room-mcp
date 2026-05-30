@@ -27,13 +27,20 @@ Follow-up:
 
 ## Priority 2 - Task Editing
 
-Needed:
+Status: DONE for MVP on 2026-05-30.
+
+Implemented:
 
 - Mark task done.
 - Mark task blocked.
 - Assign or reassign owner.
 - Append task note.
 - Link commit or branch in a task note.
+
+Follow-up:
+
+- Add inline per-task buttons once the dashboard layout has more room.
+- Add a structured commit/branch link field if plain notes become too messy.
 
 ## Priority 3 - Search And History
 

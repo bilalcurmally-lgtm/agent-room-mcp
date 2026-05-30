@@ -182,6 +182,30 @@ async function routeRequest(
     return;
   }
 
+  if (method === "POST" && url.pathname === "/api/tasks/update") {
+    const body = await readJsonBody(request);
+    const task = await store.updateTask({
+      taskId: requireString(body.taskId, "taskId"),
+      status: requireTaskStatus(body.status),
+      owner: optionalString(body.owner),
+      note: optionalString(body.note),
+      by: optionalString(body.by) ?? "user"
+    });
+    sendJson(response, 200, task);
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/tasks/notes") {
+    const body = await readJsonBody(request);
+    const task = await store.appendTaskNote({
+      taskId: requireString(body.taskId, "taskId"),
+      body: requireString(body.body, "body"),
+      by: optionalString(body.by) ?? "user"
+    });
+    sendJson(response, 200, task);
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/decisions") {
     const body = await readJsonBody(request);
     const decision = await store.recordDecision({
@@ -258,6 +282,11 @@ function optionalProject(value: unknown): string | undefined {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function requireTaskStatus(value: unknown): "open" | "claimed" | "blocked" | "done" {
+  if (value === "open" || value === "claimed" || value === "blocked" || value === "done") return value;
+  throw new HttpError(400, "status must be open, claimed, blocked, or done");
 }
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {

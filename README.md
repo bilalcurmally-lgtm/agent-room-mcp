@@ -75,6 +75,7 @@ For a global room, use a directory outside any single application repo, such as
 - `mark_messages_read`
 - `list_tasks`
 - `update_task`
+- `append_task_note`
 - `record_decision`
 - `register_project`
 - `list_projects`
@@ -96,7 +97,7 @@ messages, assigned tasks, open tasks, recent decisions, and room status in one a
 3. The implementer claims it with `claim_task`, posts handoff notes with `post_message`, and records
    durable scope decisions with `record_decision`.
 4. The reviewer uses `check_in`, `list_tasks`, and `read_messages` to find the work, then records findings as
-   task notes through `update_task`.
+   task notes through `update_task` or `append_task_note`.
 5. Agents call `mark_messages_read` after consuming their inbox so future `check_in` calls show only new messages.
 6. The task is marked `done` only after tests/build or explicit verification notes are attached.
 

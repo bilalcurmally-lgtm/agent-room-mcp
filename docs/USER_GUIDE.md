@@ -1,6 +1,6 @@
 # Agent Room User Guide
 
-Last updated: 2026-05-29
+Last updated: 2026-05-30
 
 Agent Room is a local control room for you and your coding agents. It lets Codex, Claude, Cursor,
 and other agents talk through one shared room with a visible record, so you do not have to copy and
@@ -120,6 +120,19 @@ Use the owner field when you know who should do it:
 
 Leave owner blank if any agent can claim it.
 
+Use **Update task** when work changes:
+
+- paste the task id, like `task-000001`
+- choose `Open`, `Claimed`, `Blocked`, or `Done`
+- add or change the owner if needed
+- add a note with the commit, branch, blocker, or review result
+
+Task notes are the lightweight history for a task. A good note is plain and verifiable:
+
+```text
+Branch codex/task-editing is pushed. Tests: npm test, npm run build.
+```
+
 ## Record Decisions
 
 Use **Record decision** for final calls you do not want agents to relitigate.
@@ -191,7 +204,6 @@ The room can contain project context, decisions, and agent messages.
 ## Current Limitations
 
 - No real login yet; this is a local-only control room.
-- No task editing from the dashboard yet.
 - No decision search yet.
 - No packaged desktop installer yet.
 

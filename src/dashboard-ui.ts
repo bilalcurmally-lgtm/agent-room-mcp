@@ -81,6 +81,18 @@ export const dashboardHtml = `<!doctype html>
         <input id="task-owner" placeholder="Owner (optional)" />
         <button type="submit">Create task</button>
       </form>
+      <form id="task-update-form" class="composer">
+        <input id="task-update-id" placeholder="Task id, e.g. task-000001" />
+        <select id="task-update-status">
+          <option value="open">Open</option>
+          <option value="claimed">Claimed</option>
+          <option value="blocked">Blocked</option>
+          <option value="done">Done</option>
+        </select>
+        <input id="task-update-owner" placeholder="Owner (optional)" />
+        <textarea id="task-update-note" rows="2" placeholder="Task note (optional)"></textarea>
+        <button type="submit">Update task</button>
+      </form>
       <h3>Decisions</h3>
       <div id="decisions" class="stack"></div>
       <form id="decision-form" class="composer">
@@ -111,6 +123,11 @@ export const dashboardHtml = `<!doctype html>
     const taskTitle = document.getElementById("task-title");
     const taskBody = document.getElementById("task-body");
     const taskOwner = document.getElementById("task-owner");
+    const taskUpdateForm = document.getElementById("task-update-form");
+    const taskUpdateId = document.getElementById("task-update-id");
+    const taskUpdateStatus = document.getElementById("task-update-status");
+    const taskUpdateOwner = document.getElementById("task-update-owner");
+    const taskUpdateNote = document.getElementById("task-update-note");
     const decisionForm = document.getElementById("decision-form");
     const decisionTitle = document.getElementById("decision-title");
     const decisionBody = document.getElementById("decision-body");
@@ -200,8 +217,10 @@ export const dashboardHtml = `<!doctype html>
       tasks.replaceChildren(...snapshot.tasks.map((task) =>
         card(
           "task",
-          formatTimestamp(task.updatedAt) + " · " + task.status + (task.owner ? " · " + task.owner : ""),
-          task.title
+          task.id + " · " + formatTimestamp(task.updatedAt) + " · " + task.status + (task.owner ? " · " + task.owner : ""),
+          task.title + (task.notes?.length ? "\\n\\nNotes:\\n" + task.notes.map((note) =>
+            "- " + formatTimestamp(note.at) + " · " + note.by + ": " + note.body
+          ).join("\\n") : "")
         )
       ));
       if (!snapshot.tasks.length) setEmpty(tasks, "No tasks yet.");
@@ -272,6 +291,24 @@ export const dashboardHtml = `<!doctype html>
       taskTitle.value = "";
       taskBody.value = "";
       taskOwner.value = "";
+      await loadSnapshot();
+    });
+
+    taskUpdateForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const taskId = taskUpdateId.value.trim();
+      const status = taskUpdateStatus.value;
+      const owner = taskUpdateOwner.value.trim();
+      const note = taskUpdateNote.value.trim();
+      if (!taskId) return;
+      await fetch("/api/tasks/update", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ taskId, status, owner: owner || undefined, note: note || undefined, by: "user" })
+      });
+      taskUpdateId.value = "";
+      taskUpdateOwner.value = "";
+      taskUpdateNote.value = "";
       await loadSnapshot();
     });
 

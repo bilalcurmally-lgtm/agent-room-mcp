@@ -51,6 +51,35 @@ describe("AgentRoomStore", () => {
     });
   });
 
+  it("reassigns tasks and appends task-only notes", async () => {
+    const store = await makeStore();
+    const task = await store.createTask(taskInput({ title: "Review dashboard", owner: "codex" }));
+
+    expect(
+      await store.updateTask({
+        taskId: task.id,
+        status: "blocked",
+        owner: "claude-opus",
+        note: "Needs reviewer decision",
+        by: "user"
+      })
+    ).toMatchObject({
+      id: task.id,
+      status: "blocked",
+      owner: "claude-opus",
+      notes: [expect.objectContaining({ by: "user", body: "Needs reviewer decision" })]
+    });
+
+    expect(await store.appendTaskNote({ taskId: task.id, body: "Commit 123abc is ready.", by: "codex" }))
+      .toMatchObject({
+        id: task.id,
+        notes: [
+          expect.objectContaining({ body: "Needs reviewer decision" }),
+          expect.objectContaining({ by: "codex", body: "Commit 123abc is ready." })
+        ]
+      });
+  });
+
   it("records decisions in markdown and reports room status", async () => {
     const store = await makeStore();
 

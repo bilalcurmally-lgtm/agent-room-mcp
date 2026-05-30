@@ -156,6 +156,56 @@ describe("dashboard server", () => {
     expect(snapshot.decisions).toMatchObject([{ title: "Human is lead" }]);
   });
 
+  it("lets the user update task status, owner, and notes from the dashboard API", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const task = await store.createTask({
+      title: "Fix routing",
+      body: "Keep the dashboard tab stable.",
+      owner: "codex",
+      project: "agent-room-mcp"
+    });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const updateResponse = await fetch(`${server.url}/api/tasks/update`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        taskId: task.id,
+        status: "blocked",
+        owner: "claude-opus",
+        note: "Needs review before merge.",
+        by: "user"
+      })
+    });
+    expect(updateResponse.status).toBe(200);
+
+    const noteResponse = await fetch(`${server.url}/api/tasks/notes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        taskId: task.id,
+        body: "Branch codex/task-editing is ready.",
+        by: "codex"
+      })
+    });
+    expect(noteResponse.status).toBe(200);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.tasks).toMatchObject([
+      {
+        id: task.id,
+        status: "blocked",
+        owner: "claude-opus",
+        notes: [
+          expect.objectContaining({ by: "user", body: "Needs review before merge." }),
+          expect.objectContaining({ by: "codex", body: "Branch codex/task-editing is ready." })
+        ]
+      }
+    ]);
+  });
+
   it("lets the user register a project folder and returns it in snapshots", async () => {
     const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
     const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });

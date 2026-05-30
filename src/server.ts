@@ -73,7 +73,14 @@ const ListTasksInput = {
 const UpdateTaskInput = {
   taskId: z.string().min(1),
   status: z.enum(["open", "claimed", "blocked", "done"]),
+  owner: z.string().max(MAX_TEXT_LENGTH).optional(),
   note: z.string().max(MAX_TEXT_LENGTH).optional(),
+  by: z.string().max(MAX_TEXT_LENGTH).optional()
+};
+
+const AppendTaskNoteInput = {
+  taskId: z.string().min(1),
+  body: z.string().min(1).max(MAX_TEXT_LENGTH),
   by: z.string().max(MAX_TEXT_LENGTH).optional()
 };
 
@@ -200,10 +207,20 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     "update_task",
     {
       title: "Update task",
-      description: "Update a task status and optionally append a note.",
+      description: "Update a task status, optionally reassign the owner, and optionally append a note.",
       inputSchema: UpdateTaskInput
     },
     async (input) => jsonResult(await store.updateTask(input))
+  );
+
+  server.registerTool(
+    "append_task_note",
+    {
+      title: "Append task note",
+      description: "Append a timestamped note to a task without changing its status or owner.",
+      inputSchema: AppendTaskNoteInput
+    },
+    async (input) => jsonResult(await store.appendTaskNote(input))
   );
 
   server.registerTool(
