@@ -122,6 +122,64 @@ describe("dashboard server", () => {
     expect(html).toContain("[NEXT:");
     expect(html).toContain("Add project folder");
     expect(html).toContain("Project folder");
+    expect(html).toContain("Search room");
+  });
+
+  it("searches messages, tasks, task notes, and decisions in a project snapshot", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const task = await store.createTask({
+      title: "Implement search",
+      body: "Find the needle task.",
+      owner: "codex",
+      project: "agent-room-mcp"
+    });
+    await store.appendTaskNote({ taskId: task.id, body: "Needle note from review.", by: "claude-opus" });
+    await store.postMessage({
+      from: "user",
+      to: "all",
+      topic: "Needle message",
+      body: "This should match.",
+      project: "agent-room-mcp"
+    });
+    await store.postMessage({
+      from: "user",
+      to: "all",
+      topic: "Other message",
+      body: "This should not match.",
+      project: "agent-room-mcp"
+    });
+    await store.recordDecision({
+      title: "Needle decision",
+      decision: "Keep search simple.",
+      rationale: "Humans need it.",
+      project: "agent-room-mcp"
+    });
+    await store.recordDecision({
+      title: "Other decision",
+      decision: "Keep something else.",
+      rationale: "Not relevant.",
+      project: "agent-room-mcp"
+    });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const messageSnapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp&q=needle%20message`)
+      .then((res) => res.json());
+    expect(messageSnapshot.search).toBe("needle message");
+    expect(messageSnapshot.messages).toMatchObject([{ topic: "Needle message" }]);
+    expect(messageSnapshot.tasks).toEqual([]);
+    expect(messageSnapshot.decisions).toEqual([]);
+
+    const noteSnapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp&q=review`)
+      .then((res) => res.json());
+    expect(noteSnapshot.tasks).toMatchObject([{ id: task.id, title: "Implement search" }]);
+    expect(noteSnapshot.decisions).toEqual([]);
+
+    const decisionSnapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp&q=simple`)
+      .then((res) => res.json());
+    expect(decisionSnapshot.decisions).toMatchObject([{ title: "Needle decision" }]);
+    expect(decisionSnapshot.messages).toEqual([]);
   });
 
   it("lets the user create tasks and decisions from the dashboard API", async () => {

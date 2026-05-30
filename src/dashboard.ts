@@ -21,6 +21,7 @@ export interface DashboardServer {
 
 interface Snapshot {
   selectedProject: string;
+  search: string;
   projects: string[];
   projectRecords: RoomProject[];
   messages: RoomMessage[];
@@ -137,7 +138,11 @@ async function routeRequest(
   }
 
   if (method === "GET" && url.pathname === "/api/snapshot") {
-    sendJson(response, 200, await createSnapshot(store, url.searchParams.get("project") ?? "all"));
+    sendJson(
+      response,
+      200,
+      await createSnapshot(store, url.searchParams.get("project") ?? "all", url.searchParams.get("q") ?? "")
+    );
     return;
   }
 
@@ -222,21 +227,25 @@ async function routeRequest(
   sendJson(response, 404, { error: "Not found" });
 }
 
-async function createSnapshot(store: AgentRoomStore, selectedProject: string): Promise<Snapshot> {
+async function createSnapshot(store: AgentRoomStore, selectedProject: string, search: string): Promise<Snapshot> {
   const projectFilter = selectedProject === "all" ? undefined : selectedProject;
   const messages = await store.listMessages();
   const tasks = await store.listTasks(projectFilter && projectFilter !== "unsorted" ? { project: projectFilter } : {});
   const decisions = await store.listDecisions();
   const agents = await store.listAgents();
   const projectRecords = await store.listProjectRecords();
+  const projectMessages = filterProject(messages, selectedProject);
+  const projectTasks = filterProject(tasks, selectedProject);
+  const projectDecisions = filterProject(decisions, selectedProject);
 
   return {
     selectedProject,
+    search,
     projects: await store.listProjects(),
     projectRecords,
-    messages: filterProject(messages, selectedProject),
-    tasks: filterProject(tasks, selectedProject),
-    decisions: filterProject(decisions, selectedProject),
+    messages: filterSearch(projectMessages, search, messageSearchText),
+    tasks: filterSearch(projectTasks, search, taskSearchText),
+    decisions: filterSearch(projectDecisions, search, decisionSearchText),
     agents: agents.map(({ id, displayName, role, lastReadMessageId, registeredAt, updatedAt }) => ({
       id,
       displayName,
@@ -246,6 +255,47 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string): P
       updatedAt
     }))
   };
+}
+
+function filterSearch<T>(items: T[], search: string, text: (item: T) => string): T[] {
+  const query = search.trim().toLowerCase();
+  if (!query) return items;
+  return items.filter((item) => text(item).toLowerCase().includes(query));
+}
+
+function messageSearchText(message: RoomMessage): string {
+  return [message.id, message.from, message.to, message.topic, message.body, message.project, message.source]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function taskSearchText(task: RoomTask): string {
+  return [
+    task.id,
+    task.title,
+    task.body,
+    task.status,
+    task.owner,
+    task.project,
+    task.source,
+    ...task.notes.map((note) => [note.by, note.body].join(" "))
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function decisionSearchText(decision: RoomDecision): string {
+  return [
+    decision.id,
+    decision.title,
+    decision.decision,
+    decision.rationale,
+    decision.project,
+    decision.source,
+    ...(decision.links ?? [])
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function filterProject<T extends { project?: string }>(items: T[], selectedProject: string): T[] {

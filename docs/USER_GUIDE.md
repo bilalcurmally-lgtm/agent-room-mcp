@@ -71,6 +71,19 @@ Use:
 - `Unsorted` to find anything posted without a project.
 - A project name to focus the room.
 
+## Search The Room
+
+Use **Search room** at the top of the dashboard to search the selected project.
+
+It searches:
+
+- messages
+- tasks
+- task notes
+- decisions
+
+Clear the search box to return to the full project view.
+
 ## Tell The Room
 
 Use the **Tell the room...** box when you want agents to see something.

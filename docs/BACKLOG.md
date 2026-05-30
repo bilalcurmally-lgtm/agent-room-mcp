@@ -44,11 +44,17 @@ Follow-up:
 
 ## Priority 3 - Search And History
 
-Needed:
+Status: Search MVP done on 2026-05-30.
+
+Implemented:
 
 - Search messages.
+- Search tasks and task notes.
 - Search decisions.
 - Filter by project.
+
+Needed:
+
 - Filter by agent.
 - Filter by date/time.
 
@@ -97,3 +103,15 @@ Needed:
 - Desktop shortcut.
 - Possible tray app.
 - Optional auto-start.
+
+## Priority 8 - Temporal Awareness
+
+Source: `D:\projects\temporal-awareness`
+
+Needed:
+
+- Show human-friendly elapsed time such as `updated 2 hours ago`.
+- Include current local room time in snapshots/check-ins where useful.
+- Warn when tasks, messages, or decisions are stale enough that agents should re-check context.
+- Support future follow-up language such as `later today`, `tomorrow`, or `next week`.
+- Keep the standalone `temporal-awareness` project separate for now; borrow the patterns before adding a dependency.

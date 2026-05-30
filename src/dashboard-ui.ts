@@ -48,6 +48,7 @@ export const dashboardHtml = `<!doctype html>
   <header>
     <strong>Agent Room</strong>
     <label>Project <select id="project"></select></label>
+    <label>Search room <input id="search" placeholder="Messages, tasks, decisions" /></label>
     <button id="refresh" type="button" title="Refresh">↻</button>
     <span class="meta">Your local time</span>
   </header>
@@ -105,7 +106,9 @@ export const dashboardHtml = `<!doctype html>
   </main>
   <script>
     let selectedProject = "all";
+    let searchQuery = "";
     const projectSelect = document.getElementById("project");
+    const searchInput = document.getElementById("search");
     const feed = document.getElementById("feed");
     const agents = document.getElementById("agents");
     const tasks = document.getElementById("tasks");
@@ -232,7 +235,9 @@ export const dashboardHtml = `<!doctype html>
     }
 
     async function loadSnapshot() {
-      const response = await fetch("/api/snapshot?project=" + encodeURIComponent(selectedProject));
+      const params = new URLSearchParams({ project: selectedProject });
+      if (searchQuery) params.set("q", searchQuery);
+      const response = await fetch("/api/snapshot?" + params.toString());
       renderSnapshot(await response.json());
     }
 
@@ -242,6 +247,11 @@ export const dashboardHtml = `<!doctype html>
     });
 
     refreshButton.addEventListener("click", loadSnapshot);
+
+    searchInput.addEventListener("input", () => {
+      searchQuery = searchInput.value.trim();
+      loadSnapshot();
+    });
 
     messageForm.addEventListener("submit", async (event) => {
       event.preventDefault();
