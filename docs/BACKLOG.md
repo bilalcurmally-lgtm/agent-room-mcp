@@ -54,16 +54,24 @@ Needed:
 
 ## Priority 4 - App-Specific Setup Guides
 
+Current state:
+
+- Claude Code setup is documented in `README.md`.
+- Claude Code restart caveat is documented in `README.md` and `docs/USER_GUIDE.md`.
+
 Needed:
 
-- Connect Claude Code.
 - Connect Codex.
 - Connect Cursor.
 - Test that each one actually joined the room.
 
 ## Priority 5 - Ping/Watch Reliability
 
-Current state: Claude Code hook script exists.
+Current state:
+
+- Claude Code hook script exists at `scripts/room-ping.mjs`.
+- Hook helper behavior is covered in `test/room-ping.test.ts`.
+- Hook setup is documented in `README.md` and `docs/USER_GUIDE.md`.
 
 Needed:
 
