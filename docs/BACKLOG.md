@@ -60,16 +60,19 @@ Needed:
 
 ## Priority 4 - App-Specific Setup Guides
 
-Current state:
+Status: MVP documented on 2026-05-30.
+
+Implemented:
 
 - Claude Code setup is documented in `README.md`.
 - Claude Code restart caveat is documented in `README.md` and `docs/USER_GUIDE.md`.
+- Codex setup is documented in `docs/MCP_CLIENT_SETUP.md`.
+- Cursor setup is documented in `docs/MCP_CLIENT_SETUP.md`.
+- Each setup includes a verification ritual using `register_agent`, `check_in`, and a dashboard confirmation.
 
 Needed:
 
-- Connect Codex.
-- Connect Cursor.
-- Test that each one actually joined the room.
+- Test each client in the real app after MCP config is applied.
 
 ## Priority 5 - Ping/Watch Reliability
 

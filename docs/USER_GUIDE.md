@@ -171,6 +171,7 @@ Do not claim consensus, review, or handoff unless the room contains the record.
 ```
 
 For Claude Code, after adding the MCP server, restart the Claude Code session so tools load.
+For Codex, Claude Code, and Cursor setup steps, read [MCP_CLIENT_SETUP.md](MCP_CLIENT_SETUP.md).
 
 ## Automatic Claude Pings
 

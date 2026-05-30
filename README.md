@@ -46,6 +46,7 @@ project picker, room feed, agent list, task list, decision list, and a "Tell the
 
 For a plain-English walkthrough, read [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 For agent message format and routing rules, read [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md).
+For Codex, Claude Code, and Cursor setup, read [docs/MCP_CLIENT_SETUP.md](docs/MCP_CLIENT_SETUP.md).
 
 ## MCP Client Config
 
@@ -105,6 +106,9 @@ Agents should not claim they reached consensus, received a handoff, or reviewed 
 work unless the relevant message, task note, or decision exists in the room.
 
 ## Claude Code Setup
+
+For the full multi-client setup guide, including Codex and Cursor, read
+[docs/MCP_CLIENT_SETUP.md](docs/MCP_CLIENT_SETUP.md).
 
 Add the MCP server:
 
