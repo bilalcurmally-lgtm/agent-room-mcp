@@ -52,6 +52,15 @@ describe("dashboard server", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       selectedProject: "dashboard-v2",
+      progress: {
+        done: expect.any(Number),
+        total: expect.any(Number),
+        remaining: expect.any(Number),
+        percent: expect.any(Number),
+        items: expect.arrayContaining([
+          expect.objectContaining({ title: "Project Registry And Folder Picker", status: "done" })
+        ])
+      },
       roomTime: {
         utcIso: expect.any(String),
         timezone: expect.any(String),
@@ -132,6 +141,8 @@ describe("dashboard server", () => {
     expect(html).toContain("formatRelativeTime");
     expect(html).toContain("staleTasks");
     expect(html).toContain("stale-threshold-form");
+    expect(html).toContain("progress-bar");
+    expect(html).toContain("renderProgress");
   });
 
   it("returns stale task warnings in project snapshots", async () => {

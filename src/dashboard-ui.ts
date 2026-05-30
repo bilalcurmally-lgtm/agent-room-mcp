@@ -30,6 +30,8 @@ export const dashboardHtml = `<!doctype html>
     .message, .task, .decision, .agent, .empty { border: 1px solid var(--soft); border-radius: 6px; padding: 10px; background: #fff; }
     .meta { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
     .body { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .progress-track { height: 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--soft); overflow: hidden; }
+    .progress-bar { height: 100%; width: 0; background: var(--blue); }
     .composer { display: grid; gap: 8px; margin-top: 12px; }
     textarea, input, select, button { font: inherit; }
     textarea, input, select { width: 100%; border: 1px solid #c8c8c0; border-radius: 6px; padding: 8px; background: #fff; color: var(--ink); }
@@ -54,6 +56,14 @@ export const dashboardHtml = `<!doctype html>
   </header>
   <main>
     <section>
+      <h2>Progress</h2>
+      <div class="message">
+        <div id="progress-summary" class="meta">Loading progress...</div>
+        <div class="progress-track" aria-label="Roadmap progress">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div id="progress-items" class="body"></div>
+      </div>
       <h2>Room Feed</h2>
       <div id="feed" class="feed"></div>
       <form id="message-form" class="composer">
@@ -116,6 +126,9 @@ export const dashboardHtml = `<!doctype html>
     const projectSelect = document.getElementById("project");
     const searchInput = document.getElementById("search");
     const feed = document.getElementById("feed");
+    const progressSummary = document.getElementById("progress-summary");
+    const progressBar = document.getElementById("progress-bar");
+    const progressItems = document.getElementById("progress-items");
     const agents = document.getElementById("agents");
     const staleTasks = document.getElementById("stale-tasks");
     const staleThresholdForm = document.getElementById("stale-threshold-form");
@@ -215,8 +228,18 @@ export const dashboardHtml = `<!doctype html>
       }));
     }
 
+    function renderProgress(progress) {
+      if (!progress) return;
+      progressSummary.textContent = progress.done + " done · " + progress.remaining + " left · " + progress.percent + "%";
+      progressBar.style.width = progress.percent + "%";
+      progressItems.textContent = progress.items.map((item) =>
+        item.status.toUpperCase() + " · " + item.title
+      ).join("\\n");
+    }
+
     function renderSnapshot(snapshot) {
       renderSelect(snapshot.projects || []);
+      renderProgress(snapshot.progress);
       if (snapshot.roomTime) {
         roomClock.textContent = "Room time " + formatTimestamp(snapshot.roomTime.localIso);
         roomClock.title = snapshot.roomTime.timezone + " " + snapshot.roomTime.utcOffset;

@@ -43,6 +43,7 @@ agent-room-dashboard --room D:\projects\.agent-room
 The dashboard has four main areas:
 
 - **Project picker:** choose `All Projects`, `Unsorted`, or one project like `dashboard-v2`.
+- **Progress:** a roadmap progress bar showing what is done and what is still left.
 - **Room Feed:** the shared conversation between you and agents.
 - **Agents:** agents that registered in the room.
 - **Tasks and Decisions:** work items and final calls.
@@ -83,6 +84,12 @@ It searches:
 - decisions
 
 Clear the search box to return to the full project view.
+
+## Progress Bar
+
+The dashboard shows a roadmap progress bar so the room stays honest about what is done and what is
+left. It currently tracks the major backlog sections, not every small task. Use the details below
+the bar to see which slices are done, partial, or still todo.
 
 ## Tell The Room
 

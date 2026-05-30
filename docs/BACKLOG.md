@@ -98,6 +98,20 @@ Needed:
 - Optional structured fields for status/next.
 - Phase labels such as `C1`, `review`, `blocked`.
 
+## Priority 6.5 - Roadmap Progress Honesty
+
+Status: MVP done on 2026-05-30.
+
+Implemented:
+
+- Dashboard snapshot includes roadmap progress counts.
+- Dashboard shows a progress bar with done/remaining percentage.
+- Progress items show done, partial, and todo roadmap slices.
+
+Follow-up:
+
+- Drive progress from real room tasks or a structured roadmap file instead of a static list.
+
 ## Priority 7 - Easy Launcher
 
 Needed:
