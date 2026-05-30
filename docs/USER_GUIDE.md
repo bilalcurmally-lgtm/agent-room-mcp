@@ -56,6 +56,15 @@ Projects work like folders.
 If you select `dashboard-v2`, messages, tasks, and decisions you create are tagged for that project.
 Agents should use the same project name when they check in.
 
+For real workspaces, use **Add project folder**. Add:
+
+- project id, like `audit-cockpit`
+- project name, like `Audit Cockpit`
+- folder path, like `D:\projects\audit-cockpit`
+- optional repo URL
+
+Agents will receive that folder path when they check in, so they know which project directory to use.
+
 Use:
 
 - `All Projects` to see everything.

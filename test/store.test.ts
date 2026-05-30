@@ -197,6 +197,7 @@ describe("AgentRoomStore", () => {
     const store = await makeStore();
     await store.registerAgent(agent({ agent: "codex" }));
     await store.postMessage(message({ from: "opus", to: "codex", topic: "Needs fix", project: "alpha" }));
+    await store.upsertProject({ id: "alpha", name: "Alpha", folderPath: "D:\\projects\\alpha" });
     await store.postMessage(message({ from: "user", to: "all", topic: "Priority", project: "alpha" }));
     await store.postMessage(message({ from: "opus", to: "codex", topic: "Other project", project: "beta" }));
     await store.createTask(taskInput({ title: "Implement alpha", owner: "codex", project: "alpha" }));
@@ -217,6 +218,7 @@ describe("AgentRoomStore", () => {
     expect(checkIn.assignedTasks).toMatchObject([{ title: "Implement alpha" }]);
     expect(checkIn.openTasks).toMatchObject([{ title: "Unclaimed alpha" }]);
     expect(checkIn.recentDecisions).toMatchObject([{ title: "Use room" }]);
+    expect(checkIn.projectRecord).toMatchObject({ id: "alpha", folderPath: "D:\\projects\\alpha" });
 
     await store.markMessagesRead({ agent: "codex" });
     expect((await store.checkIn({ agent: "codex" })).unreadMessages).toEqual([]);
@@ -235,6 +237,30 @@ describe("AgentRoomStore", () => {
     await store.postMessage(message({ from: "opus", to: "codex", topic: "No project" }));
 
     expect(await store.listProjects()).toEqual(["agent-room", "dashboard-v2", "unsorted"]);
+  });
+
+  it("registers project folders and lists them before tag-only projects", async () => {
+    const store = await makeStore();
+    const project = await store.upsertProject({
+      id: "audit-cockpit",
+      name: "Audit Cockpit",
+      folderPath: "D:\\projects\\audit-cockpit",
+      repoUrl: "https://github.com/example/audit-cockpit",
+      status: "active"
+    });
+    await store.postMessage(message({ from: "user", to: "all", topic: "Tag only", project: "loose-tag" }));
+
+    expect(project).toMatchObject({
+      id: "audit-cockpit",
+      name: "Audit Cockpit",
+      folderPath: "D:\\projects\\audit-cockpit",
+      repoUrl: "https://github.com/example/audit-cockpit",
+      status: "active"
+    });
+    expect(await store.listProjectRecords()).toMatchObject([
+      { id: "audit-cockpit", name: "Audit Cockpit", folderPath: "D:\\projects\\audit-cockpit" }
+    ]);
+    expect(await store.listProjects()).toEqual(["audit-cockpit", "loose-tag"]);
   });
 });
 

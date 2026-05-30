@@ -66,6 +66,15 @@ export const dashboardHtml = `<!doctype html>
       <div id="agents" class="stack"></div>
       <h3>Tasks</h3>
       <div id="tasks" class="stack"></div>
+      <h3>Projects</h3>
+      <div id="project-records" class="stack"></div>
+      <form id="project-form" class="composer">
+        <input id="project-id" placeholder="Project id, e.g. audit-cockpit" />
+        <input id="project-name" placeholder="Project name" />
+        <input id="project-folder" placeholder="Project folder, e.g. D:\\projects\\audit-cockpit" />
+        <input id="project-repo" placeholder="Repo URL (optional)" />
+        <button type="submit">Add project folder</button>
+      </form>
       <form id="task-form" class="composer">
         <input id="task-title" placeholder="Task title" />
         <textarea id="task-body" rows="2" placeholder="Task details"></textarea>
@@ -89,9 +98,15 @@ export const dashboardHtml = `<!doctype html>
     const agents = document.getElementById("agents");
     const tasks = document.getElementById("tasks");
     const decisions = document.getElementById("decisions");
+    const projectRecords = document.getElementById("project-records");
     const messageForm = document.getElementById("message-form");
     const messageInput = document.getElementById("message");
     const messageTo = document.getElementById("message-to");
+    const projectForm = document.getElementById("project-form");
+    const projectId = document.getElementById("project-id");
+    const projectName = document.getElementById("project-name");
+    const projectFolder = document.getElementById("project-folder");
+    const projectRepo = document.getElementById("project-repo");
     const taskForm = document.getElementById("task-form");
     const taskTitle = document.getElementById("task-title");
     const taskBody = document.getElementById("task-body");
@@ -177,6 +192,11 @@ export const dashboardHtml = `<!doctype html>
       ));
       if (!snapshot.agents.length) setEmpty(agents, "No agents checked in yet.");
 
+      projectRecords.replaceChildren(...(snapshot.projectRecords || []).map((project) =>
+        card("task", project.name + " · " + project.id, project.folderPath)
+      ));
+      if (!snapshot.projectRecords?.length) setEmpty(projectRecords, "No project folders yet.");
+
       tasks.replaceChildren(...snapshot.tasks.map((task) =>
         card(
           "task",
@@ -215,6 +235,26 @@ export const dashboardHtml = `<!doctype html>
         body: JSON.stringify({ body, to, project: projectForWrite() })
       });
       messageInput.value = "";
+      await loadSnapshot();
+    });
+
+    projectForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const id = projectId.value.trim();
+      const name = projectName.value.trim();
+      const folderPath = projectFolder.value.trim();
+      const repoUrl = projectRepo.value.trim();
+      if (!id || !name || !folderPath) return;
+      await fetch("/api/projects", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, name, folderPath, repoUrl: repoUrl || undefined, status: "active" })
+      });
+      selectedProject = id;
+      projectId.value = "";
+      projectName.value = "";
+      projectFolder.value = "";
+      projectRepo.value = "";
       await loadSnapshot();
     });
 

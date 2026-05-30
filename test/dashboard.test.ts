@@ -120,6 +120,8 @@ describe("dashboard server", () => {
     expect(html).toContain("Route to");
     expect(html).toContain("[STATUS:");
     expect(html).toContain("[NEXT:");
+    expect(html).toContain("Add project folder");
+    expect(html).toContain("Project folder");
   });
 
   it("lets the user create tasks and decisions from the dashboard API", async () => {
@@ -152,5 +154,34 @@ describe("dashboard server", () => {
     const snapshot = await fetch(`${server.url}/api/snapshot?project=dashboard-v2`).then((res) => res.json());
     expect(snapshot.tasks).toMatchObject([{ title: "Implement sidebar", owner: "codex" }]);
     expect(snapshot.decisions).toMatchObject([{ title: "Human is lead" }]);
+  });
+
+  it("lets the user register a project folder and returns it in snapshots", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "audit-cockpit",
+        name: "Audit Cockpit",
+        folderPath: "D:\\projects\\audit-cockpit",
+        repoUrl: "https://github.com/example/audit-cockpit"
+      })
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      id: "audit-cockpit",
+      name: "Audit Cockpit",
+      folderPath: "D:\\projects\\audit-cockpit"
+    });
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=audit-cockpit`).then((res) => res.json());
+    expect(snapshot.projectRecords).toMatchObject([
+      { id: "audit-cockpit", name: "Audit Cockpit", folderPath: "D:\\projects\\audit-cockpit" }
+    ]);
   });
 });

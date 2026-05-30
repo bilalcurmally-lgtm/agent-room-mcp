@@ -42,7 +42,14 @@ describe("createServer", () => {
     const server = await createServer(await mkdtemp(join(tmpdir(), "agent-room-server-")));
 
     expect(Object.keys(server._registeredTools)).toEqual(
-      expect.arrayContaining(["list_tasks", "register_agent", "check_in", "mark_messages_read"])
+      expect.arrayContaining([
+        "list_tasks",
+        "register_agent",
+        "check_in",
+        "mark_messages_read",
+        "register_project",
+        "list_projects"
+      ])
     );
   });
 });

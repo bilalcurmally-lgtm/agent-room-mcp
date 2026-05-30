@@ -75,6 +75,19 @@ export interface RoomAgent {
   updatedAt: string;
 }
 
+export interface UpsertProjectInput {
+  id: string;
+  name: string;
+  folderPath: string;
+  repoUrl?: string;
+  status?: string;
+}
+
+export interface RoomProject extends UpsertProjectInput {
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MarkMessagesReadInput {
   agent: AgentId;
   throughId?: string;
@@ -89,6 +102,7 @@ export interface CheckInInput {
 
 export interface AgentCheckIn {
   agent: RoomAgent;
+  projectRecord?: RoomProject;
   unreadMessages: RoomMessage[];
   assignedTasks: RoomTask[];
   openTasks: RoomTask[];
@@ -137,6 +151,7 @@ interface RoomState {
   tasks: RoomTask[];
   decisions: RoomDecision[];
   agents: RoomAgent[];
+  projects: RoomProject[];
 }
 
 export class AgentRoomStore {
@@ -244,9 +259,13 @@ export class AgentRoomStore {
     const assignedTasks = await this.listTasks({ owner: input.agent, project: input.project });
     const openTasks = await this.listTasks({ status: "open", project: input.project });
     const decisions = await this.readDecisions();
+    const projectRecord = input.project
+      ? (await this.readProjects()).find((project) => project.id === input.project)
+      : undefined;
 
     return {
       agent,
+      projectRecord,
       unreadMessages,
       assignedTasks,
       openTasks,
@@ -309,6 +328,10 @@ export class AgentRoomStore {
     const projects = new Set<string>();
     let hasUnsorted = false;
 
+    for (const project of state.projects) {
+      projects.add(project.id);
+    }
+
     for (const item of [...state.messages, ...state.tasks, ...state.decisions]) {
       if (item.project) projects.add(item.project);
       else hasUnsorted = true;
@@ -324,6 +347,44 @@ export class AgentRoomStore {
 
   async listAgents(): Promise<RoomAgent[]> {
     return this.readAgents();
+  }
+
+  async listProjectRecords(): Promise<RoomProject[]> {
+    return this.readProjects();
+  }
+
+  async upsertProject(input: UpsertProjectInput): Promise<RoomProject> {
+    validateText("id", input.id);
+    validateText("name", input.name);
+    validateText("folderPath", input.folderPath);
+    validateText("repoUrl", input.repoUrl);
+    validateText("status", input.status);
+
+    return this.withExclusiveWrite(async () => {
+      const projects = await this.readProjects();
+      const existing = projects.find((project) => project.id === input.id);
+      const time = now();
+
+      if (existing) {
+        existing.name = input.name;
+        existing.folderPath = input.folderPath;
+        existing.repoUrl = input.repoUrl;
+        existing.status = input.status;
+        existing.updatedAt = time;
+        await this.writeProjects(projects);
+        return existing;
+      }
+
+      const project: RoomProject = {
+        ...input,
+        createdAt: time,
+        updatedAt: time
+      };
+      projects.push(project);
+      projects.sort((a, b) => a.name.localeCompare(b.name));
+      await this.writeProjects(projects);
+      return project;
+    });
   }
 
   async updateTask(input: UpdateTaskInput): Promise<RoomTask> {
@@ -403,6 +464,7 @@ export class AgentRoomStore {
     await ensureFile(this.path("decisions.json"), "[]\n");
     await ensureFile(this.path("decisions.md"), "# Agent Room Decisions\n\n");
     await ensureFile(this.path("agents.json"), "[]\n");
+    await ensureFile(this.path("projects.json"), "[]\n");
     await ensureFile(this.path("config.json"), "{}\n");
   }
 
@@ -411,7 +473,8 @@ export class AgentRoomStore {
       messages: await this.readJsonl<RoomMessage>("messages.jsonl"),
       tasks: await this.readTasks(),
       decisions: await this.readDecisions(),
-      agents: await this.readAgents()
+      agents: await this.readAgents(),
+      projects: await this.readProjects()
     };
   }
 
@@ -433,6 +496,14 @@ export class AgentRoomStore {
 
   private async writeAgents(agents: RoomAgent[]): Promise<void> {
     await this.writeJsonAtomic("agents.json", agents);
+  }
+
+  private async readProjects(): Promise<RoomProject[]> {
+    return this.readJson<RoomProject[]>("projects.json", []);
+  }
+
+  private async writeProjects(projects: RoomProject[]): Promise<void> {
+    await this.writeJsonAtomic("projects.json", projects);
   }
 
   private async readJson<T>(fileName: string, fallback: T): Promise<T> {

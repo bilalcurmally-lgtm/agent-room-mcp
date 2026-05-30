@@ -44,6 +44,14 @@ const RegisterAgentInput = {
   role: z.string().min(1).max(MAX_TEXT_LENGTH).optional()
 };
 
+const RegisterProjectInput = {
+  id: z.string().min(1).max(MAX_TEXT_LENGTH),
+  name: z.string().min(1).max(MAX_TEXT_LENGTH),
+  folderPath: z.string().min(1).max(MAX_TEXT_LENGTH),
+  repoUrl: z.string().max(MAX_TEXT_LENGTH).optional(),
+  status: z.string().max(MAX_TEXT_LENGTH).optional()
+};
+
 const MarkMessagesReadInput = {
   agent: z.string().min(1).max(MAX_TEXT_LENGTH),
   throughId: z.string().min(1).optional(),
@@ -153,6 +161,29 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       inputSchema: MarkMessagesReadInput
     },
     async (input) => jsonResult(await store.markMessagesRead(input))
+  );
+
+  server.registerTool(
+    "register_project",
+    {
+      title: "Register project",
+      description: "Register or update a project folder so agents know the real workspace path.",
+      inputSchema: RegisterProjectInput
+    },
+    async (input) => jsonResult(await store.upsertProject(input))
+  );
+
+  server.registerTool(
+    "list_projects",
+    {
+      title: "List projects",
+      description: "List registered project folders and tag-only project ids."
+    },
+    async () =>
+      jsonResult({
+        records: await store.listProjectRecords(),
+        ids: await store.listProjects()
+      })
   );
 
   server.registerTool(

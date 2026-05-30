@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { AddressInfo } from "node:net";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AgentRoomStore, type RoomDecision, type RoomMessage, type RoomTask } from "./store.js";
+import { AgentRoomStore, type RoomDecision, type RoomMessage, type RoomProject, type RoomTask } from "./store.js";
 import { dashboardHtml } from "./dashboard-ui.js";
 
 export interface DashboardOptions {
@@ -22,6 +22,7 @@ export interface DashboardServer {
 interface Snapshot {
   selectedProject: string;
   projects: string[];
+  projectRecords: RoomProject[];
   messages: RoomMessage[];
   tasks: RoomTask[];
   decisions: RoomDecision[];
@@ -155,6 +156,19 @@ async function routeRequest(
     return;
   }
 
+  if (method === "POST" && url.pathname === "/api/projects") {
+    const body = await readJsonBody(request);
+    const project = await store.upsertProject({
+      id: requireString(body.id, "id"),
+      name: requireString(body.name, "name"),
+      folderPath: requireString(body.folderPath, "folderPath"),
+      repoUrl: optionalString(body.repoUrl),
+      status: optionalString(body.status)
+    });
+    sendJson(response, 201, project);
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/tasks") {
     const body = await readJsonBody(request);
     const task = await store.createTask({
@@ -190,10 +204,12 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string): P
   const tasks = await store.listTasks(projectFilter && projectFilter !== "unsorted" ? { project: projectFilter } : {});
   const decisions = await store.listDecisions();
   const agents = await store.listAgents();
+  const projectRecords = await store.listProjectRecords();
 
   return {
     selectedProject,
     projects: await store.listProjects(),
+    projectRecords,
     messages: filterProject(messages, selectedProject),
     tasks: filterProject(tasks, selectedProject),
     decisions: filterProject(decisions, selectedProject),

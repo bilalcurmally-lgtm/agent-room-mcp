@@ -76,10 +76,15 @@ For a global room, use a directory outside any single application repo, such as
 - `list_tasks`
 - `update_task`
 - `record_decision`
+- `register_project`
+- `list_projects`
 - `get_room_status`
 
 Messages, tasks, and decisions support an optional `project` field so one global room can still
 separate work by repo or initiative.
+
+Registered projects add a real folder path on top of that project tag, so agents know which
+workspace to open. Example: `audit-cockpit` can point at `D:\projects\audit-cockpit`.
 
 Agents should treat `check_in` as their first move when joining or resuming work. It returns unread
 messages, assigned tasks, open tasks, recent decisions, and room status in one auditable response.
