@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createRoomTime, type RoomTime } from "./time.js";
 
 export const MAX_TEXT_LENGTH = 100_000;
+export const STALE_TASK_AFTER_HOURS = 24;
 
 export type AgentId = string;
 export type TaskStatus = "open" | "claimed" | "blocked" | "done";
@@ -108,6 +109,7 @@ export interface AgentCheckIn {
   unreadMessages: RoomMessage[];
   assignedTasks: RoomTask[];
   openTasks: RoomTask[];
+  staleTasks: StaleTaskWarning[];
   recentDecisions: RoomDecision[];
   status: RoomStatus;
 }
@@ -116,6 +118,23 @@ export interface ListTasksInput {
   status?: TaskStatus;
   owner?: AgentId;
   project?: string;
+}
+
+export interface ListStaleTasksInput {
+  project?: string;
+  now?: Date;
+  olderThanHours?: number;
+}
+
+export interface StaleTaskWarning {
+  taskId: string;
+  title: string;
+  status: Exclude<TaskStatus, "done">;
+  owner?: AgentId;
+  project?: string;
+  updatedAt: string;
+  ageHours: number;
+  message: string;
 }
 
 export interface UpdateTaskInput {
@@ -267,6 +286,7 @@ export class AgentRoomStore {
 
     const assignedTasks = await this.listTasks({ owner: input.agent, project: input.project });
     const openTasks = await this.listTasks({ status: "open", project: input.project });
+    const staleTasks = await this.listStaleTasks({ project: input.project });
     const decisions = await this.readDecisions();
     const projectRecord = input.project
       ? (await this.readProjects()).find((project) => project.id === input.project)
@@ -279,6 +299,7 @@ export class AgentRoomStore {
       unreadMessages,
       assignedTasks,
       openTasks,
+      staleTasks,
       recentDecisions: decisions.filter((decision) => matchesProject(decision, input.project)),
       status: await this.getRoomStatus()
     };
@@ -330,6 +351,34 @@ export class AgentRoomStore {
       if (input.owner && task.owner !== input.owner) return false;
       if (input.project && task.project !== input.project) return false;
       return true;
+    });
+  }
+
+  async listStaleTasks(input: ListStaleTasksInput = {}): Promise<StaleTaskWarning[]> {
+    const nowTime = (input.now ?? new Date()).getTime();
+    const threshold = input.olderThanHours ?? STALE_TASK_AFTER_HOURS;
+    const tasks = await this.readTasks();
+
+    return tasks.flatMap((task) => {
+      if (task.status === "done") return [];
+      if (!matchesProject(task, input.project)) return [];
+      const updatedAt = new Date(task.updatedAt).getTime();
+      if (Number.isNaN(updatedAt)) return [];
+      const ageHours = Math.floor((nowTime - updatedAt) / 3_600_000);
+      if (ageHours < threshold) return [];
+
+      return [
+        {
+          taskId: task.id,
+          title: task.title,
+          status: task.status,
+          owner: task.owner,
+          project: task.project,
+          updatedAt: task.updatedAt,
+          ageHours,
+          message: `Re-check ${task.id}; this ${task.status} task has not changed in ${ageHours} hours.`
+        }
+      ];
     });
   }
 

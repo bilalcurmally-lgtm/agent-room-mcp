@@ -258,6 +258,36 @@ describe("AgentRoomStore", () => {
     expect((await store.checkIn({ agent: "codex" })).unreadMessages).toEqual([]);
   });
 
+  it("warns agents about stale active tasks during check-in", async () => {
+    const store = await makeStore();
+    await store.registerAgent(agent({ agent: "codex" }));
+    const stale = await store.createTask(taskInput({ title: "Re-check old work", owner: "codex", project: "alpha" }));
+    const done = await store.createTask(taskInput({ title: "Old but done", owner: "codex", project: "alpha" }));
+    await store.updateTask({ taskId: done.id, status: "done" });
+    const fresh = await store.createTask(taskInput({ title: "Fresh work", owner: "codex", project: "alpha" }));
+    const tasks = JSON.parse(await readFile(join(store.roomDir, "tasks.json"), "utf8"));
+    for (const task of tasks) {
+      if (task.id === stale.id || task.id === done.id) task.updatedAt = "2000-01-01T00:00:00.000Z";
+      if (task.id === fresh.id) task.updatedAt = new Date().toISOString();
+    }
+    await writeFile(join(store.roomDir, "tasks.json"), `${JSON.stringify(tasks, null, 2)}\n`, "utf8");
+
+    const checkIn = await store.checkIn({ agent: "codex", project: "alpha" });
+
+    expect(checkIn.staleTasks).toMatchObject([
+      {
+        taskId: stale.id,
+        title: "Re-check old work",
+        status: "claimed",
+        owner: "codex",
+        project: "alpha",
+        message: expect.stringContaining("Re-check")
+      }
+    ]);
+    expect(checkIn.staleTasks.map((warning) => warning.taskId)).not.toContain(done.id);
+    expect(checkIn.staleTasks.map((warning) => warning.taskId)).not.toContain(fresh.id);
+  });
+
   it("lists projects from messages, tasks, and decisions with unsorted fallback", async () => {
     const store = await makeStore();
     await store.postMessage(message({ from: "user", to: "all", topic: "Global", project: "dashboard-v2" }));

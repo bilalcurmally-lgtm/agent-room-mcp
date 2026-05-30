@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -130,6 +130,34 @@ describe("dashboard server", () => {
     expect(html).toContain("Search room");
     expect(html).toContain("room-clock");
     expect(html).toContain("formatRelativeTime");
+    expect(html).toContain("staleTasks");
+  });
+
+  it("returns stale task warnings in project snapshots", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const stale = await store.createTask({
+      title: "Re-check stale dashboard task",
+      body: "Old context.",
+      owner: "codex",
+      project: "agent-room-mcp"
+    });
+    const tasks = await store.listTasks({});
+    tasks[0].updatedAt = "2000-01-01T00:00:00.000Z";
+    await writeFile(join(roomDir, "tasks.json"), `${JSON.stringify(tasks, null, 2)}\n`, "utf8");
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+
+    expect(snapshot.staleTasks).toMatchObject([
+      {
+        taskId: stale.id,
+        title: "Re-check stale dashboard task",
+        owner: "codex",
+        message: expect.stringContaining("Re-check")
+      }
+    ]);
   });
 
   it("searches messages, tasks, task notes, and decisions in a project snapshot", async () => {

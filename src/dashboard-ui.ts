@@ -65,6 +65,8 @@ export const dashboardHtml = `<!doctype html>
     <aside>
       <h2>Agents</h2>
       <div id="agents" class="stack"></div>
+      <h3>Stale Warnings</h3>
+      <div id="stale-tasks" class="stack"></div>
       <h3>Tasks</h3>
       <div id="tasks" class="stack"></div>
       <h3>Projects</h3>
@@ -111,6 +113,7 @@ export const dashboardHtml = `<!doctype html>
     const searchInput = document.getElementById("search");
     const feed = document.getElementById("feed");
     const agents = document.getElementById("agents");
+    const staleTasks = document.getElementById("stale-tasks");
     const tasks = document.getElementById("tasks");
     const decisions = document.getElementById("decisions");
     const projectRecords = document.getElementById("project-records");
@@ -230,6 +233,15 @@ export const dashboardHtml = `<!doctype html>
         )
       ));
       if (!snapshot.agents.length) setEmpty(agents, "No agents checked in yet.");
+
+      staleTasks.replaceChildren(...(snapshot.staleTasks || []).map((warning) =>
+        card(
+          "task",
+          warning.taskId + " · " + warning.status + " · " + warning.ageHours + "h old" + (warning.owner ? " · " + warning.owner : ""),
+          warning.message
+        )
+      ));
+      if (!snapshot.staleTasks?.length) setEmpty(staleTasks, "No stale active tasks.");
 
       projectRecords.replaceChildren(...(snapshot.projectRecords || []).map((project) =>
         card("task", project.name + " · " + project.id, project.folderPath)

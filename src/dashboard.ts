@@ -4,7 +4,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { AddressInfo } from "node:net";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AgentRoomStore, type RoomDecision, type RoomMessage, type RoomProject, type RoomTask } from "./store.js";
+import {
+  AgentRoomStore,
+  type RoomDecision,
+  type RoomMessage,
+  type RoomProject,
+  type RoomTask,
+  type StaleTaskWarning
+} from "./store.js";
 import { dashboardHtml } from "./dashboard-ui.js";
 import { createRoomTime, type RoomTime } from "./time.js";
 
@@ -28,6 +35,7 @@ interface Snapshot {
   projectRecords: RoomProject[];
   messages: RoomMessage[];
   tasks: RoomTask[];
+  staleTasks: StaleTaskWarning[];
   decisions: RoomDecision[];
   agents: Array<{
     id: string;
@@ -236,8 +244,10 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
   const decisions = await store.listDecisions();
   const agents = await store.listAgents();
   const projectRecords = await store.listProjectRecords();
+  const staleTasks = await store.listStaleTasks(projectFilter && projectFilter !== "unsorted" ? { project: projectFilter } : {});
   const projectMessages = filterProject(messages, selectedProject);
   const projectTasks = filterProject(tasks, selectedProject);
+  const projectStaleTasks = filterProject(staleTasks, selectedProject);
   const projectDecisions = filterProject(decisions, selectedProject);
 
   return {
@@ -248,6 +258,7 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
     projectRecords,
     messages: filterSearch(projectMessages, search, messageSearchText),
     tasks: filterSearch(projectTasks, search, taskSearchText),
+    staleTasks: filterSearch(projectStaleTasks, search, staleTaskSearchText),
     decisions: filterSearch(projectDecisions, search, decisionSearchText),
     agents: agents.map(({ id, displayName, role, lastReadMessageId, registeredAt, updatedAt }) => ({
       id,
@@ -283,6 +294,12 @@ function taskSearchText(task: RoomTask): string {
     task.source,
     ...task.notes.map((note) => [note.by, note.body].join(" "))
   ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function staleTaskSearchText(warning: StaleTaskWarning): string {
+  return [warning.taskId, warning.title, warning.status, warning.owner, warning.project, warning.message]
     .filter(Boolean)
     .join("\n");
 }

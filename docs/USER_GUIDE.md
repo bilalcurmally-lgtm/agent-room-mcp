@@ -201,6 +201,10 @@ The dashboard shows local date/time and relative age for:
 The top bar shows current room time from the dashboard snapshot. Agent `check_in` responses also
 include room time so agents can reason about stale context without guessing.
 
+The dashboard also shows **Stale Warnings** for active tasks that have not changed in more than
+24 hours. Treat those as a prompt to re-check the current code, branch, or user instruction before
+continuing.
+
 The underlying room stores timestamps in ISO format so agents and scripts can audit exact history.
 The dashboard translates those into normal local time for humans.
 
@@ -222,7 +226,7 @@ The room can contain project context, decisions, and agent messages.
 ## Current Limitations
 
 - No real login yet; this is a local-only control room.
-- No stale-context warnings yet.
+- Stale warnings currently focus on active tasks only.
 - No packaged desktop installer yet.
 
 Those should come after real dogfooding proves the dashboard workflow is right.

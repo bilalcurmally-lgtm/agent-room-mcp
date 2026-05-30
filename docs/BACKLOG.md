@@ -117,9 +117,11 @@ Implemented:
 
 - Show human-friendly elapsed time such as `updated 2 hours ago`.
 - Include current local room time in snapshots/check-ins where useful.
+- Warn when active tasks are stale enough that agents should re-check context.
 
 Needed:
 
-- Warn when tasks, messages, or decisions are stale enough that agents should re-check context.
+- Tune stale thresholds after dogfooding.
+- Decide whether messages and decisions need stale warnings too, or whether tasks are enough.
 - Support future follow-up language such as `later today`, `tomorrow`, or `next week`.
 - Keep the standalone `temporal-awareness` project separate for now; borrow the patterns before adding a dependency.
