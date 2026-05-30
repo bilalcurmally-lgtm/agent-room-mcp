@@ -74,6 +74,35 @@ describe("dashboard server", () => {
     expect(snapshot.messages).toMatchObject([{ from: "user", to: "all", body: "Codex implement, Opus review." }]);
   });
 
+  it("preserves explicit HTTP message identity and routing", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        from: "claude-opus",
+        to: "codex-desktop",
+        topic: "Review handoff",
+        body: "[STATUS: reviewing] Found one issue. [NEXT: Codex fix it.]",
+        project: "agent-room-mcp",
+        source: "claude-http",
+        replyTo: "000001"
+      })
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      from: "claude-opus",
+      to: "codex-desktop",
+      topic: "Review handoff",
+      source: "claude-http",
+      replyTo: "000001"
+    });
+  });
+
   it("serves a human-friendly control room page", async () => {
     const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
     const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
@@ -88,6 +117,9 @@ describe("dashboard server", () => {
     expect(html).toContain("Record decision");
     expect(html).toContain("formatTimestamp");
     expect(html).toContain("Your local time");
+    expect(html).toContain("Route to");
+    expect(html).toContain("[STATUS:");
+    expect(html).toContain("[NEXT:");
   });
 
   it("lets the user create tasks and decisions from the dashboard API", async () => {

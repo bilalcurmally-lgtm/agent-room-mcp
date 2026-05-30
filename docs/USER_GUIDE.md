@@ -64,12 +64,20 @@ Use:
 
 ## Tell The Room
 
-Use the **Tell the room...** box when you want all agents to see something.
+Use the **Tell the room...** box when you want agents to see something.
+
+Use **Route to** to pick who should act:
+
+- `all` means everyone can see it.
+- `codex-desktop` means Codex should act.
+- `claude-opus` means Claude should act.
 
 Examples:
 
 ```text
+[STATUS: implementing]
 Codex owns implementation. Claude reviews only.
+[NEXT: Claude waits for the commit, then reviews.]
 ```
 
 ```text
@@ -81,6 +89,9 @@ Decision: dashboard must show timestamps everywhere.
 ```
 
 Messages sent from the dashboard are recorded as coming from `user`.
+
+Agents should include `[STATUS: ...]` and `[NEXT: ...]` in important messages. The full protocol is
+in [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
 
 ## Create Tasks
 
@@ -125,6 +136,21 @@ Do not claim consensus, review, or handoff unless the room contains the record.
 ```
 
 For Claude Code, after adding the MCP server, restart the Claude Code session so tools load.
+
+## Automatic Claude Pings
+
+Claude Code can run a hook that checks the room at the start of a turn. This means Claude can see
+new room messages without you saying "check the room" every time.
+
+The hook script is:
+
+```powershell
+node D:\projects\agent-room-mcp\scripts\room-ping.mjs --agent claude-opus --room D:\projects\.agent-room
+```
+
+It reads the dashboard snapshot, prints only new messages routed to `claude-opus` or `all`, and
+remembers what it already showed. If the dashboard is closed, it stays quiet and does not block
+Claude.
 
 ## Timestamps
 

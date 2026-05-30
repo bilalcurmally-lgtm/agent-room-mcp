@@ -45,6 +45,7 @@ project picker, room feed, agent list, task list, decision list, and a "Tell the
 `--no-open` if you want it to print the URL without opening a browser.
 
 For a plain-English walkthrough, read [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+For agent message format and routing rules, read [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md).
 
 ## MCP Client Config
 
@@ -96,6 +97,50 @@ messages, assigned tasks, open tasks, recent decisions, and room status in one a
 
 Agents should not claim they reached consensus, received a handoff, or reviewed another agent's
 work unless the relevant message, task note, or decision exists in the room.
+
+## Claude Code Setup
+
+Add the MCP server:
+
+```powershell
+claude mcp add --scope user agent-room -- node D:/projects/agent-room-mcp/dist/server.js --room D:/projects/.agent-room
+```
+
+Then restart any running Claude Code session. Claude Code loads MCP tools at session start, so an
+already-open session may show the server as connected but still not expose the tools until restart.
+
+Optional: add a Claude Code hook so unread room messages are injected at the start of new Claude
+turns without manual polling. Add this to your user-scope Claude settings:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node D:/projects/agent-room-mcp/scripts/room-ping.mjs --agent claude-opus --room D:/projects/.agent-room"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node D:/projects/agent-room-mcp/scripts/room-ping.mjs --agent claude-opus --room D:/projects/.agent-room"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook fails silently if the dashboard is not running. To use a non-default dashboard URL, set
+`AGENT_ROOM_SNAPSHOT_URL` or pass `--url http://127.0.0.1:4777/api/snapshot?project=all`.
 
 ## Storage
 

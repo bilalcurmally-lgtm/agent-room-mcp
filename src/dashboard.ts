@@ -143,12 +143,13 @@ async function routeRequest(
   if (method === "POST" && url.pathname === "/api/messages") {
     const body = await readJsonBody(request);
     const message = await store.postMessage({
-      from: "user",
-      to: "all",
+      from: optionalString(body.from) ?? "user",
+      to: optionalString(body.to) ?? "all",
       topic: typeof body.topic === "string" ? body.topic : "User note",
       body: requireString(body.body, "body"),
       project: optionalProject(body.project),
-      source: "dashboard"
+      source: optionalString(body.source) ?? "dashboard",
+      replyTo: optionalString(body.replyTo)
     });
     sendJson(response, 201, message);
     return;
@@ -237,6 +238,10 @@ function requireString(value: unknown, field: string): string {
 function optionalProject(value: unknown): string | undefined {
   if (typeof value !== "string" || value === "" || value === "all" || value === "unsorted") return undefined;
   return value;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {

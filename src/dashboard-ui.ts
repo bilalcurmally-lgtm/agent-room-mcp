@@ -56,7 +56,8 @@ export const dashboardHtml = `<!doctype html>
       <h2>Room Feed</h2>
       <div id="feed" class="feed"></div>
       <form id="message-form" class="composer">
-        <textarea id="message" rows="3" placeholder="Tell the room..."></textarea>
+        <label>Route to <input id="message-to" value="all" /></label>
+        <textarea id="message" rows="3" placeholder="Tell the room... [STATUS: planning | implementing | reviewing | blocked] [NEXT: what should happen next]"></textarea>
         <button type="submit">Tell all agents</button>
       </form>
     </section>
@@ -90,6 +91,7 @@ export const dashboardHtml = `<!doctype html>
     const decisions = document.getElementById("decisions");
     const messageForm = document.getElementById("message-form");
     const messageInput = document.getElementById("message");
+    const messageTo = document.getElementById("message-to");
     const taskForm = document.getElementById("task-form");
     const taskTitle = document.getElementById("task-title");
     const taskBody = document.getElementById("task-body");
@@ -205,11 +207,12 @@ export const dashboardHtml = `<!doctype html>
     messageForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const body = messageInput.value.trim();
+      const to = messageTo.value.trim() || "all";
       if (!body) return;
       await fetch("/api/messages", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ body, project: projectForWrite() })
+        body: JSON.stringify({ body, to, project: projectForWrite() })
       });
       messageInput.value = "";
       await loadSnapshot();
