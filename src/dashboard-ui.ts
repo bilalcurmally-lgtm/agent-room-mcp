@@ -67,6 +67,10 @@ export const dashboardHtml = `<!doctype html>
       <div id="agents" class="stack"></div>
       <h3>Stale Warnings</h3>
       <div id="stale-tasks" class="stack"></div>
+      <form id="stale-threshold-form" class="composer">
+        <label>Stale after hours <input id="stale-threshold" type="number" min="1" step="1" /></label>
+        <button type="submit">Save threshold</button>
+      </form>
       <h3>Tasks</h3>
       <div id="tasks" class="stack"></div>
       <h3>Projects</h3>
@@ -114,6 +118,8 @@ export const dashboardHtml = `<!doctype html>
     const feed = document.getElementById("feed");
     const agents = document.getElementById("agents");
     const staleTasks = document.getElementById("stale-tasks");
+    const staleThresholdForm = document.getElementById("stale-threshold-form");
+    const staleThreshold = document.getElementById("stale-threshold");
     const tasks = document.getElementById("tasks");
     const decisions = document.getElementById("decisions");
     const projectRecords = document.getElementById("project-records");
@@ -215,6 +221,7 @@ export const dashboardHtml = `<!doctype html>
         roomClock.textContent = "Room time " + formatTimestamp(snapshot.roomTime.localIso);
         roomClock.title = snapshot.roomTime.timezone + " " + snapshot.roomTime.utcOffset;
       }
+      if (snapshot.config?.staleTaskHours) staleThreshold.value = String(snapshot.config.staleTaskHours);
 
       feed.replaceChildren(...snapshot.messages.map((message) =>
         card(
@@ -282,6 +289,18 @@ export const dashboardHtml = `<!doctype html>
     searchInput.addEventListener("input", () => {
       searchQuery = searchInput.value.trim();
       loadSnapshot();
+    });
+
+    staleThresholdForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const staleTaskHours = Number(staleThreshold.value);
+      if (!Number.isInteger(staleTaskHours) || staleTaskHours <= 0) return;
+      await fetch("/api/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ staleTaskHours })
+      });
+      await loadSnapshot();
     });
 
     messageForm.addEventListener("submit", async (event) => {

@@ -131,6 +131,7 @@ describe("dashboard server", () => {
     expect(html).toContain("room-clock");
     expect(html).toContain("formatRelativeTime");
     expect(html).toContain("staleTasks");
+    expect(html).toContain("stale-threshold-form");
   });
 
   it("returns stale task warnings in project snapshots", async () => {
@@ -158,6 +159,24 @@ describe("dashboard server", () => {
         message: expect.stringContaining("Re-check")
       }
     ]);
+  });
+
+  it("lets the user configure stale task warning threshold", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const updateResponse = await fetch(`${server.url}/api/config`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ staleTaskHours: 6 })
+    });
+
+    expect(updateResponse.status).toBe(200);
+    await expect(updateResponse.json()).resolves.toMatchObject({ staleTaskHours: 6 });
+
+    const snapshot = await fetch(`${server.url}/api/snapshot`).then((res) => res.json());
+    expect(snapshot.config).toMatchObject({ staleTaskHours: 6 });
   });
 
   it("searches messages, tasks, task notes, and decisions in a project snapshot", async () => {

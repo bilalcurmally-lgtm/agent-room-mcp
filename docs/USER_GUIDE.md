@@ -201,8 +201,9 @@ The dashboard shows local date/time and relative age for:
 The top bar shows current room time from the dashboard snapshot. Agent `check_in` responses also
 include room time so agents can reason about stale context without guessing.
 
-The dashboard also shows **Stale Warnings** for active tasks that have not changed in more than
-24 hours. Treat those as a prompt to re-check the current code, branch, or user instruction before
+The dashboard also shows **Stale Warnings** for active tasks that have not changed recently. The
+default threshold is 24 hours, and you can change it with **Stale after hours** in the dashboard.
+Treat those warnings as a prompt to re-check the current code, branch, or user instruction before
 continuing.
 
 The underlying room stores timestamps in ISO format so agents and scripts can audit exact history.

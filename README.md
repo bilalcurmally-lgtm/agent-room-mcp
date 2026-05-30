@@ -91,7 +91,7 @@ workspace to open. Example: `audit-cockpit` can point at `D:\projects\audit-cock
 Agents should treat `check_in` as their first move when joining or resuming work. It returns unread
 messages, assigned tasks, open tasks, recent decisions, room status, and current room time in one
 auditable response. It also flags stale active tasks so agents know when to re-check context before
-continuing.
+continuing. The stale-task threshold defaults to 24 hours and can be changed from the dashboard.
 
 ## Implementer + Reviewer Workflow
 

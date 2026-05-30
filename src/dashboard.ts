@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   AgentRoomStore,
+  type RoomConfig,
   type RoomDecision,
   type RoomMessage,
   type RoomProject,
@@ -31,6 +32,7 @@ interface Snapshot {
   selectedProject: string;
   search: string;
   roomTime: RoomTime;
+  config: RoomConfig;
   projects: string[];
   projectRecords: RoomProject[];
   messages: RoomMessage[];
@@ -184,6 +186,15 @@ async function routeRequest(
     return;
   }
 
+  if (method === "POST" && url.pathname === "/api/config") {
+    const body = await readJsonBody(request);
+    const config = await store.updateConfig({
+      staleTaskHours: optionalNumber(body.staleTaskHours)
+    });
+    sendJson(response, 200, config);
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/tasks") {
     const body = await readJsonBody(request);
     const task = await store.createTask({
@@ -244,7 +255,12 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
   const decisions = await store.listDecisions();
   const agents = await store.listAgents();
   const projectRecords = await store.listProjectRecords();
-  const staleTasks = await store.listStaleTasks(projectFilter && projectFilter !== "unsorted" ? { project: projectFilter } : {});
+  const config = await store.getConfig();
+  const staleTasks = await store.listStaleTasks(
+    projectFilter && projectFilter !== "unsorted"
+      ? { project: projectFilter, olderThanHours: config.staleTaskHours }
+      : { olderThanHours: config.staleTaskHours }
+  );
   const projectMessages = filterProject(messages, selectedProject);
   const projectTasks = filterProject(tasks, selectedProject);
   const projectStaleTasks = filterProject(staleTasks, selectedProject);
@@ -254,6 +270,7 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
     selectedProject,
     search,
     roomTime: createRoomTime(),
+    config,
     projects: await store.listProjects(),
     projectRecords,
     messages: filterSearch(projectMessages, search, messageSearchText),
@@ -352,6 +369,10 @@ function optionalProject(value: unknown): string | undefined {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
 function requireTaskStatus(value: unknown): "open" | "claimed" | "blocked" | "done" {

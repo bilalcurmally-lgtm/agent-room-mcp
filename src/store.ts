@@ -174,6 +174,14 @@ export interface RoomStatus {
   unread: Record<AgentId, number>;
 }
 
+export interface RoomConfig {
+  staleTaskHours: number;
+}
+
+export interface UpdateConfigInput {
+  staleTaskHours?: number;
+}
+
 interface RoomState {
   messages: RoomMessage[];
   tasks: RoomTask[];
@@ -286,7 +294,8 @@ export class AgentRoomStore {
 
     const assignedTasks = await this.listTasks({ owner: input.agent, project: input.project });
     const openTasks = await this.listTasks({ status: "open", project: input.project });
-    const staleTasks = await this.listStaleTasks({ project: input.project });
+    const config = await this.getConfig();
+    const staleTasks = await this.listStaleTasks({ project: input.project, olderThanHours: config.staleTaskHours });
     const decisions = await this.readDecisions();
     const projectRecord = input.project
       ? (await this.readProjects()).find((project) => project.id === input.project)
@@ -379,6 +388,27 @@ export class AgentRoomStore {
           message: `Re-check ${task.id}; this ${task.status} task has not changed in ${ageHours} hours.`
         }
       ];
+    });
+  }
+
+  async getConfig(): Promise<RoomConfig> {
+    const config = await this.readConfig();
+    return {
+      staleTaskHours: config.staleTaskHours ?? STALE_TASK_AFTER_HOURS
+    };
+  }
+
+  async updateConfig(input: UpdateConfigInput): Promise<RoomConfig> {
+    const current = await this.getConfig();
+    const next: RoomConfig = {
+      ...current,
+      ...input
+    };
+    validatePositiveInteger("staleTaskHours", next.staleTaskHours);
+
+    return this.withExclusiveWrite(async () => {
+      await this.writeConfig(next);
+      return next;
     });
   }
 
@@ -585,6 +615,14 @@ export class AgentRoomStore {
     await this.writeJsonAtomic("projects.json", projects);
   }
 
+  private async readConfig(): Promise<Partial<RoomConfig>> {
+    return this.readJson<Partial<RoomConfig>>("config.json", {});
+  }
+
+  private async writeConfig(config: RoomConfig): Promise<void> {
+    await this.writeJsonAtomic("config.json", config);
+  }
+
   private async readJson<T>(fileName: string, fallback: T): Promise<T> {
     try {
       const raw = await readFile(this.path(fileName), "utf8");
@@ -660,6 +698,12 @@ async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): P
 function validateText(field: string, value: string | undefined): void {
   if (value && value.length > MAX_TEXT_LENGTH) {
     throw new Error(`${field} must be at most ${MAX_TEXT_LENGTH} characters`);
+  }
+}
+
+function validatePositiveInteger(field: string, value: number): void {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${field} must be a positive integer`);
   }
 }
 

@@ -288,6 +288,23 @@ describe("AgentRoomStore", () => {
     expect(checkIn.staleTasks.map((warning) => warning.taskId)).not.toContain(fresh.id);
   });
 
+  it("uses room config for stale task threshold", async () => {
+    const store = await makeStore();
+    await store.registerAgent(agent({ agent: "codex" }));
+    const task = await store.createTask(taskInput({ title: "Recently idle", owner: "codex", project: "alpha" }));
+    const tasks = JSON.parse(await readFile(join(store.roomDir, "tasks.json"), "utf8"));
+    tasks[0].updatedAt = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    await writeFile(join(store.roomDir, "tasks.json"), `${JSON.stringify(tasks, null, 2)}\n`, "utf8");
+
+    expect((await store.checkIn({ agent: "codex", project: "alpha" })).staleTasks).toEqual([]);
+
+    await store.updateConfig({ staleTaskHours: 1 });
+    const checkIn = await store.checkIn({ agent: "codex", project: "alpha" });
+
+    expect(await store.getConfig()).toMatchObject({ staleTaskHours: 1 });
+    expect(checkIn.staleTasks).toMatchObject([{ taskId: task.id, ageHours: expect.any(Number) }]);
+  });
+
   it("lists projects from messages, tasks, and decisions with unsorted fallback", async () => {
     const store = await makeStore();
     await store.postMessage(message({ from: "user", to: "all", topic: "Global", project: "dashboard-v2" }));
