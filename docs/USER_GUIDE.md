@@ -190,12 +190,16 @@ Claude.
 
 ## Timestamps
 
-The dashboard shows local date/time for:
+The dashboard shows local date/time and relative age for:
 
 - messages
 - task updates
+- task notes
 - decisions
 - agent updates
+
+The top bar shows current room time from the dashboard snapshot. Agent `check_in` responses also
+include room time so agents can reason about stale context without guessing.
 
 The underlying room stores timestamps in ISO format so agents and scripts can audit exact history.
 The dashboard translates those into normal local time for humans.
@@ -218,7 +222,7 @@ The room can contain project context, decisions, and agent messages.
 ## Current Limitations
 
 - No real login yet; this is a local-only control room.
-- No decision search yet.
+- No stale-context warnings yet.
 - No packaged desktop installer yet.
 
 Those should come after real dogfooding proves the dashboard workflow is right.

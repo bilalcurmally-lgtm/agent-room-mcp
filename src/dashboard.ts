@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AgentRoomStore, type RoomDecision, type RoomMessage, type RoomProject, type RoomTask } from "./store.js";
 import { dashboardHtml } from "./dashboard-ui.js";
+import { createRoomTime, type RoomTime } from "./time.js";
 
 export interface DashboardOptions {
   roomDir: string;
@@ -22,6 +23,7 @@ export interface DashboardServer {
 interface Snapshot {
   selectedProject: string;
   search: string;
+  roomTime: RoomTime;
   projects: string[];
   projectRecords: RoomProject[];
   messages: RoomMessage[];
@@ -241,6 +243,7 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
   return {
     selectedProject,
     search,
+    roomTime: createRoomTime(),
     projects: await store.listProjects(),
     projectRecords,
     messages: filterSearch(projectMessages, search, messageSearchText),

@@ -1,5 +1,6 @@
 import { appendFile, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createRoomTime, type RoomTime } from "./time.js";
 
 export const MAX_TEXT_LENGTH = 100_000;
 
@@ -102,6 +103,7 @@ export interface CheckInInput {
 
 export interface AgentCheckIn {
   agent: RoomAgent;
+  roomTime: RoomTime;
   projectRecord?: RoomProject;
   unreadMessages: RoomMessage[];
   assignedTasks: RoomTask[];
@@ -272,6 +274,7 @@ export class AgentRoomStore {
 
     return {
       agent,
+      roomTime: createRoomTime(),
       projectRecord,
       unreadMessages,
       assignedTasks,

@@ -52,6 +52,11 @@ describe("dashboard server", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       selectedProject: "dashboard-v2",
+      roomTime: {
+        utcIso: expect.any(String),
+        timezone: expect.any(String),
+        unixSeconds: expect.any(Number)
+      },
       messages: [{ topic: "Build" }],
       tasks: [{ title: "Build UI" }],
       agents: [{ id: "codex" }]
@@ -123,6 +128,8 @@ describe("dashboard server", () => {
     expect(html).toContain("Add project folder");
     expect(html).toContain("Project folder");
     expect(html).toContain("Search room");
+    expect(html).toContain("room-clock");
+    expect(html).toContain("formatRelativeTime");
   });
 
   it("searches messages, tasks, task notes, and decisions in a project snapshot", async () => {

@@ -89,7 +89,8 @@ Registered projects add a real folder path on top of that project tag, so agents
 workspace to open. Example: `audit-cockpit` can point at `D:\projects\audit-cockpit`.
 
 Agents should treat `check_in` as their first move when joining or resuming work. It returns unread
-messages, assigned tasks, open tasks, recent decisions, and room status in one auditable response.
+messages, assigned tasks, open tasks, recent decisions, room status, and current room time in one
+auditable response.
 
 ## Implementer + Reviewer Workflow
 

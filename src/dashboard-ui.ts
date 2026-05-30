@@ -50,7 +50,7 @@ export const dashboardHtml = `<!doctype html>
     <label>Project <select id="project"></select></label>
     <label>Search room <input id="search" placeholder="Messages, tasks, decisions" /></label>
     <button id="refresh" type="button" title="Refresh">↻</button>
-    <span class="meta">Your local time</span>
+    <span id="room-clock" class="meta">Your local time</span>
   </header>
   <main>
     <section>
@@ -136,6 +136,7 @@ export const dashboardHtml = `<!doctype html>
     const decisionBody = document.getElementById("decision-body");
     const decisionRationale = document.getElementById("decision-rationale");
     const refreshButton = document.getElementById("refresh");
+    const roomClock = document.getElementById("room-clock");
 
     function projectForWrite() {
       return selectedProject === "all" || selectedProject === "unsorted" ? undefined : selectedProject;
@@ -153,6 +154,20 @@ export const dashboardHtml = `<!doctype html>
         minute: "2-digit",
         second: "2-digit"
       });
+    }
+
+    function formatRelativeTime(value) {
+      if (!value) return "unknown age";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "unknown age";
+      const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (seconds < 60) return "just now";
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return minutes + "m ago";
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return hours + "h ago";
+      const days = Math.floor(hours / 24);
+      return days + "d ago";
     }
 
     function setEmpty(container, text) {
@@ -193,11 +208,15 @@ export const dashboardHtml = `<!doctype html>
 
     function renderSnapshot(snapshot) {
       renderSelect(snapshot.projects || []);
+      if (snapshot.roomTime) {
+        roomClock.textContent = "Room time " + formatTimestamp(snapshot.roomTime.localIso);
+        roomClock.title = snapshot.roomTime.timezone + " " + snapshot.roomTime.utcOffset;
+      }
 
       feed.replaceChildren(...snapshot.messages.map((message) =>
         card(
           "message",
-          formatTimestamp(message.time) + " · " + message.from + " → " + message.to + " · " + message.topic,
+          formatTimestamp(message.time) + " · " + formatRelativeTime(message.time) + " · " + message.from + " → " + message.to + " · " + message.topic,
           message.body
         )
       ));
@@ -207,7 +226,7 @@ export const dashboardHtml = `<!doctype html>
         card(
           "agent",
           agent.id,
-          (agent.role || agent.displayName || "Registered agent") + " · updated " + formatTimestamp(agent.updatedAt)
+          (agent.role || agent.displayName || "Registered agent") + " · updated " + formatTimestamp(agent.updatedAt) + " · " + formatRelativeTime(agent.updatedAt)
         )
       ));
       if (!snapshot.agents.length) setEmpty(agents, "No agents checked in yet.");
@@ -220,16 +239,16 @@ export const dashboardHtml = `<!doctype html>
       tasks.replaceChildren(...snapshot.tasks.map((task) =>
         card(
           "task",
-          task.id + " · " + formatTimestamp(task.updatedAt) + " · " + task.status + (task.owner ? " · " + task.owner : ""),
+          task.id + " · " + formatTimestamp(task.updatedAt) + " · " + formatRelativeTime(task.updatedAt) + " · " + task.status + (task.owner ? " · " + task.owner : ""),
           task.title + (task.notes?.length ? "\\n\\nNotes:\\n" + task.notes.map((note) =>
-            "- " + formatTimestamp(note.at) + " · " + note.by + ": " + note.body
+            "- " + formatTimestamp(note.at) + " · " + formatRelativeTime(note.at) + " · " + note.by + ": " + note.body
           ).join("\\n") : "")
         )
       ));
       if (!snapshot.tasks.length) setEmpty(tasks, "No tasks yet.");
 
       decisions.replaceChildren(...snapshot.decisions.map((decision) =>
-        card("decision", formatTimestamp(decision.time) + " · " + decision.title, decision.decision)
+        card("decision", formatTimestamp(decision.time) + " · " + formatRelativeTime(decision.time) + " · " + decision.title, decision.decision)
       ));
       if (!snapshot.decisions.length) setEmpty(decisions, "No decisions yet.");
     }

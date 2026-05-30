@@ -248,6 +248,11 @@ describe("AgentRoomStore", () => {
     expect(checkIn.openTasks).toMatchObject([{ title: "Unclaimed alpha" }]);
     expect(checkIn.recentDecisions).toMatchObject([{ title: "Use room" }]);
     expect(checkIn.projectRecord).toMatchObject({ id: "alpha", folderPath: "D:\\projects\\alpha" });
+    expect(checkIn.roomTime).toMatchObject({
+      utcIso: expect.any(String),
+      timezone: expect.any(String),
+      unixSeconds: expect.any(Number)
+    });
 
     await store.markMessagesRead({ agent: "codex" });
     expect((await store.checkIn({ agent: "codex" })).unreadMessages).toEqual([]);
