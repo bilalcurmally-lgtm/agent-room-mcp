@@ -44,7 +44,7 @@ Follow-up:
 
 ## Priority 3 - Search And History
 
-Status: Search MVP done on 2026-05-30.
+Status: Search MVP done on 2026-05-30; filter MVP expanded on 2026-05-31.
 
 Implemented:
 
@@ -52,11 +52,12 @@ Implemented:
 - Search tasks and task notes.
 - Search decisions.
 - Filter by project.
+- Filter by agent.
+- Filter by date/time.
 
 Needed:
 
-- Filter by agent.
-- Filter by date/time.
+- Add richer presets such as Today, This week, Mine, and Needs review.
 
 ## Priority 4 - App-Specific Setup Guides
 

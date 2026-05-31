@@ -32,6 +32,9 @@ export interface DashboardServer {
 interface Snapshot {
   selectedProject: string;
   search: string;
+  actor: string;
+  since: string;
+  until: string;
   roomTime: RoomTime;
   config: RoomConfig;
   progress: RoadmapProgress;
@@ -57,9 +60,17 @@ interface ProtocolWarning {
   from: string;
   to: string;
   topic: string;
+  time: string;
   project?: string;
   missing: string[];
   message: string;
+}
+
+interface SnapshotFilters {
+  search: string;
+  actor: string;
+  since: string;
+  until: string;
 }
 
 export async function startDashboardServer(options: DashboardOptions): Promise<DashboardServer> {
@@ -166,7 +177,12 @@ async function routeRequest(
     sendJson(
       response,
       200,
-      await createSnapshot(store, url.searchParams.get("project") ?? "all", url.searchParams.get("q") ?? "")
+      await createSnapshot(store, url.searchParams.get("project") ?? "all", {
+        search: url.searchParams.get("q") ?? "",
+        actor: url.searchParams.get("actor") ?? "",
+        since: url.searchParams.get("since") ?? "",
+        until: url.searchParams.get("until") ?? ""
+      })
     );
     return;
   }
@@ -261,8 +277,13 @@ async function routeRequest(
   sendJson(response, 404, { error: "Not found" });
 }
 
-async function createSnapshot(store: AgentRoomStore, selectedProject: string, search: string): Promise<Snapshot> {
+async function createSnapshot(
+  store: AgentRoomStore,
+  selectedProject: string,
+  filters: SnapshotFilters
+): Promise<Snapshot> {
   const projectFilter = selectedProject === "all" ? undefined : selectedProject;
+  const dateRange = createDateRange(filters.since, filters.until);
   const messages = await store.listMessages();
   const tasks = await store.listTasks(projectFilter && projectFilter !== "unsorted" ? { project: projectFilter } : {});
   const decisions = await store.listDecisions();
@@ -279,20 +300,41 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
   const projectStaleTasks = filterProject(staleTasks, selectedProject);
   const projectProtocolWarnings = protocolWarningsForMessages(projectMessages);
   const projectDecisions = filterProject(decisions, selectedProject);
+  const filteredMessages = filterDateRange(filterActor(projectMessages, filters.actor, messageActorText), dateRange, [
+    messageTime
+  ]);
+  const filteredTasks = filterDateRange(filterActor(projectTasks, filters.actor, taskActorText), dateRange, [
+    taskUpdatedTime,
+    taskNoteTimes
+  ]);
+  const filteredStaleTasks = filterDateRange(filterActor(projectStaleTasks, filters.actor, staleTaskActorText), dateRange, [
+    staleTaskUpdatedTime
+  ]);
+  const filteredProtocolWarnings = filterDateRange(
+    filterActor(projectProtocolWarnings, filters.actor, protocolWarningActorText),
+    dateRange,
+    [protocolWarningTime]
+  );
+  const filteredDecisions = filterDateRange(filterActor(projectDecisions, filters.actor, decisionActorText), dateRange, [
+    decisionTime
+  ]);
 
   return {
     selectedProject,
-    search,
+    search: filters.search,
+    actor: filters.actor,
+    since: filters.since,
+    until: filters.until,
     roomTime: createRoomTime(),
     config,
     progress: await getRoadmapProgressFromFile(),
     projects: await store.listProjects(),
     projectRecords,
-    messages: filterSearch(projectMessages, search, messageSearchText),
-    tasks: filterSearch(projectTasks, search, taskSearchText),
-    staleTasks: filterSearch(projectStaleTasks, search, staleTaskSearchText),
-    protocolWarnings: filterSearch(projectProtocolWarnings, search, protocolWarningSearchText),
-    decisions: filterSearch(projectDecisions, search, decisionSearchText),
+    messages: filterSearch(filteredMessages, filters.search, messageSearchText),
+    tasks: filterSearch(filteredTasks, filters.search, taskSearchText),
+    staleTasks: filterSearch(filteredStaleTasks, filters.search, staleTaskSearchText),
+    protocolWarnings: filterSearch(filteredProtocolWarnings, filters.search, protocolWarningSearchText),
+    decisions: filterSearch(filteredDecisions, filters.search, decisionSearchText),
     agents: agents.map(({ id, displayName, role, lastReadMessageId, registeredAt, updatedAt }) => ({
       id,
       displayName,
@@ -321,6 +363,7 @@ function protocolWarningsForMessages(messages: RoomMessage[]): ProtocolWarning[]
         from: message.from,
         to: message.to,
         topic: message.topic,
+        time: message.time,
         project: message.project,
         missing,
         message: `Missing ${formatMissingFields(missing)}. Ask ${message.from} to repost with protocol fields.`
@@ -334,16 +377,75 @@ function formatMissingFields(fields: string[]): string {
   return `${fields.slice(0, -1).join(", ")} and ${fields[fields.length - 1]}`;
 }
 
+interface DateRange {
+  since?: Date;
+  until?: Date;
+}
+
+function createDateRange(since: string, until: string): DateRange {
+  return {
+    since: parseStartDate(since),
+    until: parseEndDate(until)
+  };
+}
+
+function parseStartDate(value: string): Date | undefined {
+  if (!value) return undefined;
+  return parseDashboardDate(value, false);
+}
+
+function parseEndDate(value: string): Date | undefined {
+  if (!value) return undefined;
+  return parseDashboardDate(value, true);
+}
+
+function parseDashboardDate(value: string, endOfDay: boolean): Date | undefined {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const date = dateOnly ? new Date(`${value}T00:00:00.000Z`) : new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  if (dateOnly && endOfDay) date.setUTCDate(date.getUTCDate() + 1);
+  return date;
+}
+
 function filterSearch<T>(items: T[], search: string, text: (item: T) => string): T[] {
   const query = search.trim().toLowerCase();
   if (!query) return items;
   return items.filter((item) => text(item).toLowerCase().includes(query));
 }
 
+function filterActor<T>(items: T[], actor: string, text: (item: T) => string): T[] {
+  const query = actor.trim().toLowerCase();
+  if (!query) return items;
+  return items.filter((item) => text(item).toLowerCase().includes(query));
+}
+
+function filterDateRange<T>(items: T[], range: DateRange, accessors: Array<(item: T) => string[]>): T[] {
+  if (!range.since && !range.until) return items;
+  return items.filter((item) => {
+    const dates = accessors
+      .flatMap((accessor) => accessor(item))
+      .map((value) => new Date(value))
+      .filter((date) => !Number.isNaN(date.getTime()));
+    return dates.some((date) => {
+      if (range.since && date < range.since) return false;
+      if (range.until && date >= range.until) return false;
+      return true;
+    });
+  });
+}
+
 function messageSearchText(message: RoomMessage): string {
   return [message.id, message.from, message.to, message.topic, message.body, message.project, message.source]
     .filter(Boolean)
     .join("\n");
+}
+
+function messageActorText(message: RoomMessage): string {
+  return [message.from, message.to, message.source].filter(Boolean).join("\n");
+}
+
+function messageTime(message: RoomMessage): string[] {
+  return [message.time];
 }
 
 function taskSearchText(task: RoomTask): string {
@@ -361,10 +463,30 @@ function taskSearchText(task: RoomTask): string {
     .join("\n");
 }
 
+function taskActorText(task: RoomTask): string {
+  return [task.owner, task.source, ...task.notes.map((note) => note.by)].filter(Boolean).join("\n");
+}
+
+function taskUpdatedTime(task: RoomTask): string[] {
+  return [task.updatedAt];
+}
+
+function taskNoteTimes(task: RoomTask): string[] {
+  return task.notes.map((note) => note.at);
+}
+
 function staleTaskSearchText(warning: StaleTaskWarning): string {
   return [warning.taskId, warning.title, warning.status, warning.owner, warning.project, warning.message]
     .filter(Boolean)
     .join("\n");
+}
+
+function staleTaskActorText(warning: StaleTaskWarning): string {
+  return [warning.owner].filter(Boolean).join("\n");
+}
+
+function staleTaskUpdatedTime(warning: StaleTaskWarning): string[] {
+  return [warning.updatedAt];
 }
 
 function protocolWarningSearchText(warning: ProtocolWarning): string {
@@ -381,6 +503,14 @@ function protocolWarningSearchText(warning: ProtocolWarning): string {
     .join("\n");
 }
 
+function protocolWarningActorText(warning: ProtocolWarning): string {
+  return [warning.from, warning.to].filter(Boolean).join("\n");
+}
+
+function protocolWarningTime(warning: ProtocolWarning): string[] {
+  return [warning.time];
+}
+
 function decisionSearchText(decision: RoomDecision): string {
   return [
     decision.id,
@@ -393,6 +523,14 @@ function decisionSearchText(decision: RoomDecision): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function decisionActorText(decision: RoomDecision): string {
+  return [decision.source].filter(Boolean).join("\n");
+}
+
+function decisionTime(decision: RoomDecision): string[] {
+  return [decision.time];
 }
 
 function filterProject<T extends { project?: string }>(items: T[], selectedProject: string): T[] {

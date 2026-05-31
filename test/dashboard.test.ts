@@ -189,6 +189,10 @@ describe("dashboard server", () => {
     expect(html).toContain("Protocol Warnings");
     expect(html).toContain("protocol-warnings");
     expect(html).toContain("protocolWarnings");
+    expect(html).toContain("Filter by agent");
+    expect(html).toContain("filter-agent");
+    expect(html).toContain("filterSince");
+    expect(html).toContain("filterUntil");
   });
 
   it("returns stale task warnings in project snapshots", async () => {
@@ -291,6 +295,58 @@ describe("dashboard server", () => {
       .then((res) => res.json());
     expect(decisionSnapshot.decisions).toMatchObject([{ title: "Needle decision" }]);
     expect(decisionSnapshot.messages).toEqual([]);
+  });
+
+  it("filters snapshot history by agent and date range", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const task = await store.createTask({
+      title: "Codex task",
+      body: "Owned by Codex.",
+      owner: "codex",
+      project: "agent-room-mcp"
+    });
+    await store.createTask({
+      title: "Claude task",
+      body: "Owned by Claude.",
+      owner: "claude-opus",
+      project: "agent-room-mcp"
+    });
+    await store.postMessage({
+      from: "codex",
+      to: "claude-opus",
+      topic: "Modern handoff",
+      body: "[STATUS: implementing] Done. [NEXT: Claude review.]",
+      project: "agent-room-mcp"
+    });
+    await store.recordDecision({
+      title: "Modern decision",
+      decision: "Keep filters server-side.",
+      rationale: "Hooks need the same view.",
+      source: "codex",
+      project: "agent-room-mcp"
+    });
+
+    const tasks = await store.listTasks({});
+    tasks[0].updatedAt = "2020-01-01T00:00:00.000Z";
+    tasks[1].updatedAt = "2026-05-31T10:00:00.000Z";
+    await writeFile(join(roomDir, "tasks.json"), `${JSON.stringify(tasks, null, 2)}\n`, "utf8");
+
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const actorSnapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp&actor=codex`)
+      .then((res) => res.json());
+    expect(actorSnapshot.actor).toBe("codex");
+    expect(actorSnapshot.messages).toMatchObject([{ topic: "Modern handoff" }]);
+    expect(actorSnapshot.tasks).toMatchObject([{ id: task.id, title: "Codex task" }]);
+    expect(actorSnapshot.decisions).toMatchObject([{ title: "Modern decision" }]);
+
+    const dateSnapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp&since=2026-05-31`)
+      .then((res) => res.json());
+    expect(dateSnapshot.since).toBe("2026-05-31");
+    expect(dateSnapshot.tasks).toMatchObject([{ title: "Claude task" }]);
+    expect(dateSnapshot.tasks).not.toEqual(expect.arrayContaining([expect.objectContaining({ title: "Codex task" })]));
   });
 
   it("lets the user create tasks and decisions from the dashboard API", async () => {

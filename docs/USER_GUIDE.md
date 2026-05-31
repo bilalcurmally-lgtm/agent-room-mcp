@@ -90,6 +90,18 @@ It searches:
 
 Clear the search box to return to the full project view.
 
+Use **Filter by agent** when you want to see one participant's trail across messages, task owners,
+task notes, protocol warnings, and decision sources. Examples:
+
+```text
+codex
+claude-opus
+user
+```
+
+Use **Since** and **Until** to narrow the room by date. These filters are useful when you want to
+answer "what changed today?" or "what did Claude say before this review?"
+
 ## Progress Bar
 
 The dashboard shows a roadmap progress bar so the room stays honest about what is done and what is

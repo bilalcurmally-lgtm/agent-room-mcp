@@ -51,6 +51,9 @@ export const dashboardHtml = `<!doctype html>
     <strong>Agent Room</strong>
     <label>Project <select id="project"></select></label>
     <label>Search room <input id="search" placeholder="Messages, tasks, decisions" /></label>
+    <label>Filter by agent <input id="filter-agent" placeholder="codex, claude-opus, user" /></label>
+    <label>Since <input id="filter-since" type="date" /></label>
+    <label>Until <input id="filter-until" type="date" /></label>
     <button id="refresh" type="button" title="Refresh">↻</button>
     <span id="room-clock" class="meta">Your local time</span>
   </header>
@@ -125,8 +128,14 @@ export const dashboardHtml = `<!doctype html>
   <script>
     let selectedProject = "all";
     let searchQuery = "";
+    let filterAgent = "";
+    let filterSince = "";
+    let filterUntil = "";
     const projectSelect = document.getElementById("project");
     const searchInput = document.getElementById("search");
+    const filterAgentInput = document.getElementById("filter-agent");
+    const filterSinceInput = document.getElementById("filter-since");
+    const filterUntilInput = document.getElementById("filter-until");
     const feed = document.getElementById("feed");
     const progressSummary = document.getElementById("progress-summary");
     const progressBar = document.getElementById("progress-bar");
@@ -310,6 +319,9 @@ export const dashboardHtml = `<!doctype html>
     async function loadSnapshot() {
       const params = new URLSearchParams({ project: selectedProject });
       if (searchQuery) params.set("q", searchQuery);
+      if (filterAgent) params.set("actor", filterAgent);
+      if (filterSince) params.set("since", filterSince);
+      if (filterUntil) params.set("until", filterUntil);
       const response = await fetch("/api/snapshot?" + params.toString());
       renderSnapshot(await response.json());
     }
@@ -323,6 +335,21 @@ export const dashboardHtml = `<!doctype html>
 
     searchInput.addEventListener("input", () => {
       searchQuery = searchInput.value.trim();
+      loadSnapshot();
+    });
+
+    filterAgentInput.addEventListener("input", () => {
+      filterAgent = filterAgentInput.value.trim();
+      loadSnapshot();
+    });
+
+    filterSinceInput.addEventListener("change", () => {
+      filterSince = filterSinceInput.value;
+      loadSnapshot();
+    });
+
+    filterUntilInput.addEventListener("change", () => {
+      filterUntil = filterUntilInput.value;
       loadSnapshot();
     });
 
