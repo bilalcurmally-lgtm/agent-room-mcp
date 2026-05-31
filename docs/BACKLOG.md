@@ -54,10 +54,11 @@ Implemented:
 - Filter by project.
 - Filter by agent.
 - Filter by date/time.
+- Dashboard presets for Today, This week, Needs review, and Clear filters.
 
 Needed:
 
-- Add richer presets such as Today, This week, Mine, and Needs review.
+- Add a Mine preset after the dashboard has a durable current-user identity.
 
 ## Priority 4 - App-Specific Setup Guides
 

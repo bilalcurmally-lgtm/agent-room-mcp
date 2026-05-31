@@ -102,6 +102,13 @@ user
 Use **Since** and **Until** to narrow the room by date. These filters are useful when you want to
 answer "what changed today?" or "what did Claude say before this review?"
 
+The quick filter buttons fill those same fields for you:
+
+- **Today:** show room activity from today onward.
+- **This week:** show room activity from the current week onward.
+- **Needs review:** search for review-related messages, tasks, notes, and decisions.
+- **Clear filters:** reset search, agent, and date filters.
+
 ## Progress Bar
 
 The dashboard shows a roadmap progress bar so the room stays honest about what is done and what is

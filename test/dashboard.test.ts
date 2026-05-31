@@ -193,6 +193,11 @@ describe("dashboard server", () => {
     expect(html).toContain("filter-agent");
     expect(html).toContain("filterSince");
     expect(html).toContain("filterUntil");
+    expect(html).toContain("Today");
+    expect(html).toContain("This week");
+    expect(html).toContain("Needs review");
+    expect(html).toContain("Clear filters");
+    expect(html).toContain("applyFilterPreset");
   });
 
   it("returns stale task warnings in project snapshots", async () => {

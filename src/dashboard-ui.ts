@@ -33,11 +33,14 @@ export const dashboardHtml = `<!doctype html>
     .progress-track { height: 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--soft); overflow: hidden; }
     .progress-bar { height: 100%; width: 0; background: var(--blue); }
     .composer { display: grid; gap: 8px; margin-top: 12px; }
+    .filter-presets { display: flex; gap: 6px; align-items: end; flex-wrap: wrap; }
     textarea, input, select, button { font: inherit; }
     textarea, input, select { width: 100%; border: 1px solid #c8c8c0; border-radius: 6px; padding: 8px; background: #fff; color: var(--ink); }
     textarea { resize: vertical; }
     button { border: 1px solid var(--blue); background: var(--blue); color: white; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
     button:hover { background: var(--blue-dark); }
+    .filter-presets button { border-color: var(--line); background: #fff; color: var(--ink); }
+    .filter-presets button:hover { border-color: var(--blue); background: var(--soft); }
     #refresh { width: 40px; height: 40px; padding: 0; }
     .grid-form { display: grid; gap: 8px; }
     @media (max-width: 860px) {
@@ -54,6 +57,12 @@ export const dashboardHtml = `<!doctype html>
     <label>Filter by agent <input id="filter-agent" placeholder="codex, claude-opus, user" /></label>
     <label>Since <input id="filter-since" type="date" /></label>
     <label>Until <input id="filter-until" type="date" /></label>
+    <div class="filter-presets" aria-label="Filter presets">
+      <button type="button" data-filter-preset="today">Today</button>
+      <button type="button" data-filter-preset="week">This week</button>
+      <button type="button" data-filter-preset="review">Needs review</button>
+      <button type="button" data-filter-preset="clear">Clear filters</button>
+    </div>
     <button id="refresh" type="button" title="Refresh">↻</button>
     <span id="room-clock" class="meta">Your local time</span>
   </header>
@@ -204,6 +213,56 @@ export const dashboardHtml = `<!doctype html>
       return days + "d ago";
     }
 
+    function toDateInputValue(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return year + "-" + month + "-" + day;
+    }
+
+    function startOfWeek(date) {
+      const start = new Date(date);
+      const day = start.getDay();
+      const daysSinceMonday = day === 0 ? 6 : day - 1;
+      start.setDate(start.getDate() - daysSinceMonday);
+      return start;
+    }
+
+    function syncFilterInputs() {
+      searchInput.value = searchQuery;
+      filterAgentInput.value = filterAgent;
+      filterSinceInput.value = filterSince;
+      filterUntilInput.value = filterUntil;
+    }
+
+    function applyFilters(next) {
+      searchQuery = next.search ?? searchQuery;
+      filterAgent = next.agent ?? filterAgent;
+      filterSince = next.since ?? filterSince;
+      filterUntil = next.until ?? filterUntil;
+      syncFilterInputs();
+      loadSnapshot();
+    }
+
+    function applyFilterPreset(preset) {
+      const now = new Date();
+      if (preset === "today") {
+        applyFilters({ since: toDateInputValue(now), until: "" });
+        return;
+      }
+      if (preset === "week") {
+        applyFilters({ since: toDateInputValue(startOfWeek(now)), until: "" });
+        return;
+      }
+      if (preset === "review") {
+        applyFilters({ search: "review", agent: "", since: "", until: "" });
+        return;
+      }
+      if (preset === "clear") {
+        applyFilters({ search: "", agent: "", since: "", until: "" });
+      }
+    }
+
     function setEmpty(container, text) {
       container.replaceChildren();
       const item = document.createElement("div");
@@ -351,6 +410,12 @@ export const dashboardHtml = `<!doctype html>
     filterUntilInput.addEventListener("change", () => {
       filterUntil = filterUntilInput.value;
       loadSnapshot();
+    });
+
+    document.querySelectorAll("[data-filter-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyFilterPreset(button.dataset.filterPreset);
+      });
     });
 
     staleThresholdForm.addEventListener("submit", async (event) => {
