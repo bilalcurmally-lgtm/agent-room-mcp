@@ -22,14 +22,19 @@ Open PowerShell:
 
 ```powershell
 cd D:\projects\agent-room-mcp
-npm run build
-node dist/dashboard.js --room D:\projects\.agent-room
+npm run start-room
+```
+
+That starts the dashboard with the normal global room path:
+
+```text
+D:\projects\.agent-room
 ```
 
 The dashboard opens in a local browser-style app window. If you only want the URL printed:
 
 ```powershell
-node dist/dashboard.js --room D:\projects\.agent-room --no-open
+npm run start-room -- -NoOpen
 ```
 
 After `npm link`, you can use:

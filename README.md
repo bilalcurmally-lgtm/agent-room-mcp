@@ -29,6 +29,19 @@ agent-room-mcp --room D:\projects\.agent-room
 Run the local human control room:
 
 ```powershell
+npm run start-room
+```
+
+That uses the default global room path, `D:\projects\.agent-room`, and opens the dashboard on port
+4777. To use a different room or keep the browser closed:
+
+```powershell
+npm run start-room -- -Room D:\projects\.agent-room -NoOpen
+```
+
+The underlying command is still available when you want full control:
+
+```powershell
 npm run build
 node dist/dashboard.js --room D:\projects\.agent-room
 ```

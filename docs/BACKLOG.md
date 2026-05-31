@@ -121,9 +121,16 @@ Follow-up:
 
 ## Priority 7 - Easy Launcher
 
+Status: MVP started on 2026-05-31.
+
+Implemented:
+
+- PowerShell launcher at `scripts/start-agent-room.ps1`.
+- `npm run start-room` starts the dashboard with the default global room path.
+- Launcher supports custom `-Room`, custom `-Port`, `-NoOpen`, `-SkipBuild`, and `-DryRun`.
+
 Needed:
 
-- One-click or one-command startup.
 - Desktop shortcut.
 - Possible tray app.
 - Optional auto-start.
