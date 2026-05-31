@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "title": "Project Registry And Folder Picker",
+      "status": "done"
+    },
+    {
+      "title": "Task Editing",
+      "status": "done"
+    },
+    {
+      "title": "Search And History",
+      "status": "partial"
+    },
+    {
+      "title": "App-Specific Setup Guides",
+      "status": "partial"
+    },
+    {
+      "title": "Ping/Watch Reliability",
+      "status": "partial"
+    },
+    {
+      "title": "Protocol Enforcement",
+      "status": "todo"
+    },
+    {
+      "title": "Easy Launcher",
+      "status": "todo"
+    },
+    {
+      "title": "Temporal Awareness",
+      "status": "partial"
+    },
+    {
+      "title": "Roadmap Progress Honesty",
+      "status": "partial"
+    }
+  ]
+}

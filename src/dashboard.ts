@@ -14,7 +14,7 @@ import {
   type StaleTaskWarning
 } from "./store.js";
 import { dashboardHtml } from "./dashboard-ui.js";
-import { getRoadmapProgress, type RoadmapProgress } from "./progress.js";
+import { getRoadmapProgressFromFile, type RoadmapProgress } from "./progress.js";
 import { createRoomTime, type RoomTime } from "./time.js";
 
 export interface DashboardOptions {
@@ -273,7 +273,7 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
     search,
     roomTime: createRoomTime(),
     config,
-    progress: getRoadmapProgress(),
+    progress: await getRoadmapProgressFromFile(),
     projects: await store.listProjects(),
     projectRecords,
     messages: filterSearch(projectMessages, search, messageSearchText),

@@ -88,8 +88,9 @@ Clear the search box to return to the full project view.
 ## Progress Bar
 
 The dashboard shows a roadmap progress bar so the room stays honest about what is done and what is
-left. It currently tracks the major backlog sections, not every small task. Use the details below
-the bar to see which slices are done, partial, or still todo.
+left. It currently reads from [ROADMAP.json](ROADMAP.json), which tracks the major backlog sections,
+not every small task. Use the details below the bar to see which slices are done, partial, or still
+todo.
 
 ## Tell The Room
 

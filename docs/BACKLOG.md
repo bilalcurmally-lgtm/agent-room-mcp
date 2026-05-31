@@ -100,17 +100,18 @@ Needed:
 
 ## Priority 6.5 - Roadmap Progress Honesty
 
-Status: MVP done on 2026-05-30.
+Status: MVP done on 2026-05-30; structured roadmap source added on 2026-05-31.
 
 Implemented:
 
 - Dashboard snapshot includes roadmap progress counts.
 - Dashboard shows a progress bar with done/remaining percentage.
 - Progress items show done, partial, and todo roadmap slices.
+- Progress is loaded from `docs/ROADMAP.json` with a code fallback.
 
 Follow-up:
 
-- Drive progress from real room tasks or a structured roadmap file instead of a static list.
+- Drive progress from real room tasks or decisions instead of a manually maintained roadmap file.
 
 ## Priority 7 - Easy Launcher
 
