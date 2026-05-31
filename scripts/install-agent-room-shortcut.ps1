@@ -5,6 +5,7 @@ param(
   [switch]$NoOpen,
   [switch]$SkipBuild,
   [switch]$Startup,
+  [switch]$Remove,
   [switch]$DryRun
 )
 
@@ -51,9 +52,23 @@ if ($SkipBuild) {
 if ($DryRun) {
   Write-Output "Shortcut path: $shortcutPath"
   Write-Output ("Mode: " + $(if ($Startup) { "startup" } else { "desktop" }))
+  if ($Remove) {
+    Write-Output "Action: remove shortcut"
+    exit 0
+  }
   Write-Output "Target: powershell.exe"
   Write-Output ("Arguments: " + ($arguments -join " "))
   Write-Output "Working directory: $repoRoot"
+  exit 0
+}
+
+if ($Remove) {
+  if (Test-Path $shortcutPath) {
+    Remove-Item -LiteralPath $shortcutPath
+    Write-Output "Removed shortcut: $shortcutPath"
+  } else {
+    Write-Output "Shortcut not found: $shortcutPath"
+  }
   exit 0
 }
 

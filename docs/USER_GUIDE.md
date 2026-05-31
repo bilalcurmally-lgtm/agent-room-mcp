@@ -56,6 +56,13 @@ To make Agent Room start when Windows starts:
 npm run install-shortcut -- -Startup
 ```
 
+To remove shortcuts later:
+
+```powershell
+npm run install-shortcut -- -Remove
+npm run install-shortcut -- -Startup -Remove
+```
+
 After `npm link`, you can use:
 
 ```powershell
