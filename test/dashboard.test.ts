@@ -182,6 +182,10 @@ describe("dashboard server", () => {
     expect(html).toContain("formatTimestamp");
     expect(html).toContain("Your local time");
     expect(html).toContain("Route to");
+    expect(html).toContain("To all");
+    expect(html).toContain("To Codex");
+    expect(html).toContain("To Claude");
+    expect(html).toContain("applyRoutePreset");
     expect(html).toContain("[STATUS:");
     expect(html).toContain("[NEXT:");
     expect(html).toContain("Add project folder");

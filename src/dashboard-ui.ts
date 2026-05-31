@@ -34,6 +34,7 @@ export const dashboardHtml = `<!doctype html>
     .progress-bar { height: 100%; width: 0; background: var(--blue); }
     .composer { display: grid; gap: 8px; margin-top: 12px; }
     .filter-presets { display: flex; gap: 6px; align-items: end; flex-wrap: wrap; }
+    .route-presets { display: flex; gap: 6px; flex-wrap: wrap; }
     textarea, input, select, button { font: inherit; }
     textarea, input, select { width: 100%; border: 1px solid #c8c8c0; border-radius: 6px; padding: 8px; background: #fff; color: var(--ink); }
     textarea { resize: vertical; }
@@ -41,6 +42,8 @@ export const dashboardHtml = `<!doctype html>
     button:hover { background: var(--blue-dark); }
     .filter-presets button { border-color: var(--line); background: #fff; color: var(--ink); }
     .filter-presets button:hover { border-color: var(--blue); background: var(--soft); }
+    .route-presets button { border-color: var(--line); background: #fff; color: var(--ink); }
+    .route-presets button:hover { border-color: var(--blue); background: var(--soft); }
     #refresh { width: 40px; height: 40px; padding: 0; }
     .grid-form { display: grid; gap: 8px; }
     @media (max-width: 860px) {
@@ -80,6 +83,11 @@ export const dashboardHtml = `<!doctype html>
       <div id="feed" class="feed"></div>
       <form id="message-form" class="composer">
         <label>Route to <input id="message-to" value="all" /></label>
+        <div class="route-presets" aria-label="Route presets">
+          <button type="button" data-route-preset="all">To all</button>
+          <button type="button" data-route-preset="codex-desktop">To Codex</button>
+          <button type="button" data-route-preset="claude-opus">To Claude</button>
+        </div>
         <textarea id="message" rows="3" placeholder="Tell the room... [STATUS: planning | implementing | reviewing | blocked] [NEXT: what should happen next]"></textarea>
         <button type="submit">Tell all agents</button>
       </form>
@@ -266,6 +274,11 @@ export const dashboardHtml = `<!doctype html>
       }
     }
 
+    function applyRoutePreset(route) {
+      if (!route) return;
+      messageTo.value = route;
+    }
+
     function setEmpty(container, text) {
       container.replaceChildren();
       const item = document.createElement("div");
@@ -431,6 +444,12 @@ export const dashboardHtml = `<!doctype html>
     document.querySelectorAll("[data-filter-preset]").forEach((button) => {
       button.addEventListener("click", () => {
         applyFilterPreset(button.dataset.filterPreset);
+      });
+    });
+
+    document.querySelectorAll("[data-route-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyRoutePreset(button.dataset.routePreset);
       });
     });
 

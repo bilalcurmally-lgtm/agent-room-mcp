@@ -153,6 +153,8 @@ Use **Route to** to pick who should act:
 - `codex-desktop` means Codex should act.
 - `claude-opus` means Claude should act.
 
+Use **To all**, **To Codex**, and **To Claude** if you do not want to type those ids by hand.
+
 Examples:
 
 ```text
