@@ -85,6 +85,8 @@ export const dashboardHtml = `<!doctype html>
       </form>
     </section>
     <aside>
+      <h2>Room Status</h2>
+      <div id="room-status" class="stack"></div>
       <h2>Agents</h2>
       <div id="agents" class="stack"></div>
       <h3>Protocol Warnings</h3>
@@ -149,6 +151,7 @@ export const dashboardHtml = `<!doctype html>
     const progressSummary = document.getElementById("progress-summary");
     const progressBar = document.getElementById("progress-bar");
     const progressItems = document.getElementById("progress-items");
+    const roomStatus = document.getElementById("room-status");
     const agents = document.getElementById("agents");
     const protocolWarnings = document.getElementById("protocol-warnings");
     const staleTasks = document.getElementById("stale-tasks");
@@ -308,9 +311,22 @@ export const dashboardHtml = `<!doctype html>
       ).join("\\n");
     }
 
+    function renderStatus(status) {
+      if (!status) return;
+      const unreadTotal = Object.values(status.unread || {}).reduce((total, count) => total + Number(count || 0), 0);
+      roomStatus.replaceChildren(
+        card(
+          "agent",
+          status.messages + " messages · " + status.decisions + " decisions · " + status.agents + " agents",
+          "Tasks: " + status.tasks.open + " open · " + status.tasks.claimed + " claimed · " + status.tasks.blocked + " blocked · " + status.tasks.done + " done\\nUnread: " + unreadTotal
+        )
+      );
+    }
+
     function renderSnapshot(snapshot) {
       renderSelect(snapshot.projects || []);
       renderProgress(snapshot.progress);
+      renderStatus(snapshot.status);
       if (snapshot.roomTime) {
         roomClock.textContent = "Room time " + formatTimestamp(snapshot.roomTime.localIso);
         roomClock.title = snapshot.roomTime.timezone + " " + snapshot.roomTime.utcOffset;

@@ -10,6 +10,7 @@ import {
   type RoomDecision,
   type RoomMessage,
   type RoomProject,
+  type RoomStatus,
   type RoomTask,
   type StaleTaskWarning
 } from "./store.js";
@@ -38,6 +39,7 @@ interface Snapshot {
   roomTime: RoomTime;
   config: RoomConfig;
   progress: RoadmapProgress;
+  status: RoomStatus;
   projects: string[];
   projectRecords: RoomProject[];
   messages: RoomMessage[];
@@ -290,6 +292,7 @@ async function createSnapshot(
   const agents = await store.listAgents();
   const projectRecords = await store.listProjectRecords();
   const config = await store.getConfig();
+  const status = await store.getRoomStatus();
   const staleTasks = await store.listStaleTasks(
     projectFilter && projectFilter !== "unsorted"
       ? { project: projectFilter, olderThanHours: config.staleTaskHours }
@@ -328,6 +331,7 @@ async function createSnapshot(
     roomTime: createRoomTime(),
     config,
     progress: await getRoadmapProgressFromFile(),
+    status,
     projects: await store.listProjects(),
     projectRecords,
     messages: filterSearch(filteredMessages, filters.search, messageSearchText),

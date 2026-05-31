@@ -66,6 +66,13 @@ describe("dashboard server", () => {
         timezone: expect.any(String),
         unixSeconds: expect.any(Number)
       },
+      status: {
+        messages: 1,
+        tasks: {
+          open: 1
+        },
+        agents: 1
+      },
       messages: [{ topic: "Build" }],
       tasks: [{ title: "Build UI" }],
       protocolWarnings: [],
@@ -198,6 +205,9 @@ describe("dashboard server", () => {
     expect(html).toContain("Needs review");
     expect(html).toContain("Clear filters");
     expect(html).toContain("applyFilterPreset");
+    expect(html).toContain("Room Status");
+    expect(html).toContain("room-status");
+    expect(html).toContain("renderStatus");
   });
 
   it("returns stale task warnings in project snapshots", async () => {

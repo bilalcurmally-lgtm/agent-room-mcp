@@ -116,6 +116,7 @@ Implemented:
 - Dashboard shows a progress bar with done/remaining percentage.
 - Progress items show done, partial, and todo roadmap slices.
 - Progress is loaded from `docs/ROADMAP.json` with a code fallback.
+- Dashboard shows room status counts for messages, tasks, decisions, agents, and unread items.
 
 Follow-up:
 

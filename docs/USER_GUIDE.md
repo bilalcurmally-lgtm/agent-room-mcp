@@ -76,6 +76,7 @@ The dashboard has four main areas:
 - **Project picker:** choose `All Projects`, `Unsorted`, or one project like `dashboard-v2`.
 - **Progress:** a roadmap progress bar showing what is done and what is still left.
 - **Room Feed:** the shared conversation between you and agents.
+- **Room Status:** counts for messages, tasks, decisions, agents, and unread items.
 - **Agents:** agents that registered in the room.
 - **Tasks and Decisions:** work items and final calls.
 
