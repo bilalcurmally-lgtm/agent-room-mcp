@@ -37,6 +37,19 @@ The dashboard opens in a local browser-style app window. If you only want the UR
 npm run start-room -- -NoOpen
 ```
 
+To create a desktop shortcut:
+
+```powershell
+npm run install-shortcut
+```
+
+After that, open **Agent Room** from your desktop. To preview what the shortcut would do without
+creating it:
+
+```powershell
+npm run install-shortcut -- -DryRun
+```
+
 After `npm link`, you can use:
 
 ```powershell

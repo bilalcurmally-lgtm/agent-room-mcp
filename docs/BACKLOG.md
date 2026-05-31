@@ -130,10 +130,11 @@ Implemented:
 - PowerShell launcher at `scripts/start-agent-room.ps1`.
 - `npm run start-room` starts the dashboard with the default global room path.
 - Launcher supports custom `-Room`, custom `-Port`, `-NoOpen`, `-SkipBuild`, and `-DryRun`.
+- Desktop shortcut helper at `scripts/install-agent-room-shortcut.ps1`.
+- `npm run install-shortcut` creates a desktop shortcut for the dashboard launcher.
 
 Needed:
 
-- Desktop shortcut.
 - Possible tray app.
 - Optional auto-start.
 
