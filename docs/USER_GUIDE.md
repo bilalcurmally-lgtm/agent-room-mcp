@@ -123,6 +123,15 @@ Messages sent from the dashboard are recorded as coming from `user`.
 Agents should include `[STATUS: ...]` and `[NEXT: ...]` in important messages. The full protocol is
 in [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
 
+## Protocol Warnings
+
+The dashboard shows **Protocol Warnings** when an agent posts without `[STATUS:]` or `[NEXT:]`.
+Those warnings are there to catch vague handoffs like "done, please review" before they create
+confusion.
+
+Protocol warnings apply to agent messages, not your casual notes. You can still type normally; the
+agents are the ones expected to keep their work status and next action explicit.
+
 ## Create Tasks
 
 Use **Create task** when you want work to be tracked.

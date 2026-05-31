@@ -40,6 +40,7 @@ interface Snapshot {
   messages: RoomMessage[];
   tasks: RoomTask[];
   staleTasks: StaleTaskWarning[];
+  protocolWarnings: ProtocolWarning[];
   decisions: RoomDecision[];
   agents: Array<{
     id: string;
@@ -49,6 +50,16 @@ interface Snapshot {
     registeredAt: string;
     updatedAt: string;
   }>;
+}
+
+interface ProtocolWarning {
+  messageId: string;
+  from: string;
+  to: string;
+  topic: string;
+  project?: string;
+  missing: string[];
+  message: string;
 }
 
 export async function startDashboardServer(options: DashboardOptions): Promise<DashboardServer> {
@@ -266,6 +277,7 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
   const projectMessages = filterProject(messages, selectedProject);
   const projectTasks = filterProject(tasks, selectedProject);
   const projectStaleTasks = filterProject(staleTasks, selectedProject);
+  const projectProtocolWarnings = protocolWarningsForMessages(projectMessages);
   const projectDecisions = filterProject(decisions, selectedProject);
 
   return {
@@ -279,6 +291,7 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
     messages: filterSearch(projectMessages, search, messageSearchText),
     tasks: filterSearch(projectTasks, search, taskSearchText),
     staleTasks: filterSearch(projectStaleTasks, search, staleTaskSearchText),
+    protocolWarnings: filterSearch(projectProtocolWarnings, search, protocolWarningSearchText),
     decisions: filterSearch(projectDecisions, search, decisionSearchText),
     agents: agents.map(({ id, displayName, role, lastReadMessageId, registeredAt, updatedAt }) => ({
       id,
@@ -289,6 +302,36 @@ async function createSnapshot(store: AgentRoomStore, selectedProject: string, se
       updatedAt
     }))
   };
+}
+
+function protocolWarningsForMessages(messages: RoomMessage[]): ProtocolWarning[] {
+  return messages.flatMap((message) => {
+    if (message.from === "user") return [];
+
+    const missing = [
+      !/\[STATUS:/i.test(message.body) ? "[STATUS:]" : undefined,
+      !/\[NEXT:/i.test(message.body) ? "[NEXT:]" : undefined
+    ].filter((field): field is string => Boolean(field));
+
+    if (missing.length === 0) return [];
+
+    return [
+      {
+        messageId: message.id,
+        from: message.from,
+        to: message.to,
+        topic: message.topic,
+        project: message.project,
+        missing,
+        message: `Missing ${formatMissingFields(missing)}. Ask ${message.from} to repost with protocol fields.`
+      }
+    ];
+  });
+}
+
+function formatMissingFields(fields: string[]): string {
+  if (fields.length <= 1) return fields.join("");
+  return `${fields.slice(0, -1).join(", ")} and ${fields[fields.length - 1]}`;
 }
 
 function filterSearch<T>(items: T[], search: string, text: (item: T) => string): T[] {
@@ -320,6 +363,20 @@ function taskSearchText(task: RoomTask): string {
 
 function staleTaskSearchText(warning: StaleTaskWarning): string {
   return [warning.taskId, warning.title, warning.status, warning.owner, warning.project, warning.message]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function protocolWarningSearchText(warning: ProtocolWarning): string {
+  return [
+    warning.messageId,
+    warning.from,
+    warning.to,
+    warning.topic,
+    warning.project,
+    warning.message,
+    ...warning.missing
+  ]
     .filter(Boolean)
     .join("\n");
 }

@@ -90,13 +90,19 @@ Needed:
 
 ## Priority 6 - Protocol Enforcement
 
-Current state: `[STATUS]` and `[NEXT]` are guidance.
+Status: MVP started on 2026-05-31.
+
+Implemented:
+
+- Dashboard warnings for agent messages that omit `[STATUS:]` or `[NEXT:]`.
+- Warnings are scoped by project and visible in the control room.
+- User-authored dashboard messages are allowed to stay casual without warnings.
 
 Needed:
 
-- Dashboard warnings if important messages omit `[STATUS]` or `[NEXT]`.
 - Optional structured fields for status/next.
 - Phase labels such as `C1`, `review`, `blocked`.
+- Decide whether MCP should eventually reject malformed agent updates, or whether warnings are enough.
 
 ## Priority 6.5 - Roadmap Progress Honesty
 

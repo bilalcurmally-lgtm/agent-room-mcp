@@ -68,8 +68,51 @@ describe("dashboard server", () => {
       },
       messages: [{ topic: "Build" }],
       tasks: [{ title: "Build UI" }],
+      protocolWarnings: [],
       agents: [{ id: "codex" }]
     });
+  });
+
+  it("flags agent messages that miss protocol fields", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const badMessage = await store.postMessage({
+      from: "codex-desktop",
+      to: "claude-opus",
+      topic: "Review handoff",
+      body: "I fixed the dashboard. Please review.",
+      project: "agent-room-mcp"
+    });
+    await store.postMessage({
+      from: "claude-opus",
+      to: "codex-desktop",
+      topic: "Compliant handoff",
+      body: "[STATUS: reviewing] Looks good. [NEXT: Codex can merge.]",
+      project: "agent-room-mcp"
+    });
+    await store.postMessage({
+      from: "user",
+      to: "all",
+      topic: "Casual note",
+      body: "Please keep the dashboard simple.",
+      project: "agent-room-mcp"
+    });
+
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.protocolWarnings).toMatchObject([
+      {
+        messageId: badMessage.id,
+        from: "codex-desktop",
+        to: "claude-opus",
+        topic: "Review handoff",
+        project: "agent-room-mcp",
+        missing: ["[STATUS:]", "[NEXT:]"],
+        message: expect.stringContaining("Missing [STATUS:] and [NEXT:]")
+      }
+    ]);
   });
 
   it("lets the user post a message without touching JSON files", async () => {
@@ -143,6 +186,9 @@ describe("dashboard server", () => {
     expect(html).toContain("stale-threshold-form");
     expect(html).toContain("progress-bar");
     expect(html).toContain("renderProgress");
+    expect(html).toContain("Protocol Warnings");
+    expect(html).toContain("protocol-warnings");
+    expect(html).toContain("protocolWarnings");
   });
 
   it("returns stale task warnings in project snapshots", async () => {

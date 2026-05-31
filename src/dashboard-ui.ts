@@ -75,6 +75,8 @@ export const dashboardHtml = `<!doctype html>
     <aside>
       <h2>Agents</h2>
       <div id="agents" class="stack"></div>
+      <h3>Protocol Warnings</h3>
+      <div id="protocol-warnings" class="stack"></div>
       <h3>Stale Warnings</h3>
       <div id="stale-tasks" class="stack"></div>
       <form id="stale-threshold-form" class="composer">
@@ -130,6 +132,7 @@ export const dashboardHtml = `<!doctype html>
     const progressBar = document.getElementById("progress-bar");
     const progressItems = document.getElementById("progress-items");
     const agents = document.getElementById("agents");
+    const protocolWarnings = document.getElementById("protocol-warnings");
     const staleTasks = document.getElementById("stale-tasks");
     const staleThresholdForm = document.getElementById("stale-threshold-form");
     const staleThreshold = document.getElementById("stale-threshold");
@@ -263,6 +266,15 @@ export const dashboardHtml = `<!doctype html>
         )
       ));
       if (!snapshot.agents.length) setEmpty(agents, "No agents checked in yet.");
+
+      protocolWarnings.replaceChildren(...(snapshot.protocolWarnings || []).map((warning) =>
+        card(
+          "task",
+          warning.messageId + " · " + warning.from + " → " + warning.to + " · " + warning.missing.join(", "),
+          warning.message
+        )
+      ));
+      if (!snapshot.protocolWarnings?.length) setEmpty(protocolWarnings, "No protocol warnings.");
 
       staleTasks.replaceChildren(...(snapshot.staleTasks || []).map((warning) =>
         card(
