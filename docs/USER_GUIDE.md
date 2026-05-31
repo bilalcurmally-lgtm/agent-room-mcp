@@ -258,6 +258,35 @@ It reads the dashboard snapshot, prints only new messages routed to `claude-opus
 remembers what it already showed. If the dashboard is closed, it stays quiet and does not block
 Claude.
 
+## Room Watcher
+
+Use the watcher when you want a local process to keep checking the room:
+
+```powershell
+npm run watch-room -- --agents claude-opus,codex-desktop --dry-run
+```
+
+It polls the dashboard, finds unread messages routed to each agent or `all`, and prints compact
+notifications. To check once and exit:
+
+```powershell
+npm run watch-room -- --agents claude-opus,codex-desktop --once --dry-run
+```
+
+The watcher can also run a local command when messages appear:
+
+```powershell
+npm run watch-room -- --agents claude-opus --command "powershell -NoProfile -Command Write-Host $env:AGENT_ROOM_PING"
+```
+
+That command receives:
+
+- `AGENT_ROOM_AGENT`
+- `AGENT_ROOM_PING`
+
+This is the notification backbone. Whether it can truly wake a specific LLM app depends on whether
+that app exposes a hook, CLI, automation, or API that can receive the command.
+
 ## Timestamps
 
 The dashboard shows local date/time and relative age for:

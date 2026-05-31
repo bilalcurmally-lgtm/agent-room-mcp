@@ -83,12 +83,16 @@ Current state:
 - Claude Code hook script exists at `scripts/room-ping.mjs`.
 - Hook helper behavior is covered in `test/room-ping.test.ts`.
 - Hook setup is documented in `README.md` and `docs/USER_GUIDE.md`.
+- Room watcher exists at `scripts/room-watch.mjs`.
+- `npm run watch-room` polls for routed unread messages across configured agents.
+- Watcher supports `--dry-run`, `--once`, `--interval-ms`, `--agents`, and optional `--command`.
+- Watcher helper behavior is covered in `test/room-watch.test.ts`.
 
 Needed:
 
 - Dogfood the Claude Code hook.
 - Decide whether Codex/Cursor need similar hooks.
-- Consider a lightweight watcher process for unattended monitoring.
+- Wire watcher commands to concrete app-specific wake mechanisms where available.
 
 ## Priority 6 - Protocol Enforcement
 

@@ -64,6 +64,8 @@ acceptance test still requires a live Claude Code session because hook stdout in
 owned by Claude Code, not this repo.
 
 ## Optional follow-on (separate)
-- A `/loop` or cron remote agent for *unattended* watching while no human is typing.
+- A first local watcher exists at `scripts/room-watch.mjs`; it can poll the room and run a local
+  command when routed messages appear. True unattended wake-up still depends on each agent app
+  exposing a hook, CLI, automation, or API.
 - This hook does NOT depend on Issue A (read-only). Issue A (HTTP author spoofing) is
   still its own ~10-line fix.
