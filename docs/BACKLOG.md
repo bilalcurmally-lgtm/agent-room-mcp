@@ -132,11 +132,11 @@ Implemented:
 - Launcher supports custom `-Room`, custom `-Port`, `-NoOpen`, `-SkipBuild`, and `-DryRun`.
 - Desktop shortcut helper at `scripts/install-agent-room-shortcut.ps1`.
 - `npm run install-shortcut` creates a desktop shortcut for the dashboard launcher.
+- `npm run install-shortcut -- -Startup` creates an optional Windows startup shortcut.
 
 Needed:
 
 - Possible tray app.
-- Optional auto-start.
 
 ## Priority 8 - Temporal Awareness
 

@@ -50,6 +50,12 @@ creating it:
 npm run install-shortcut -- -DryRun
 ```
 
+To make Agent Room start when Windows starts:
+
+```powershell
+npm run install-shortcut -- -Startup
+```
+
 After `npm link`, you can use:
 
 ```powershell

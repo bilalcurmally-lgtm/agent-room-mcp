@@ -4,6 +4,7 @@ param(
   [int]$Port = 4777,
   [switch]$NoOpen,
   [switch]$SkipBuild,
+  [switch]$Startup,
   [switch]$DryRun
 )
 
@@ -21,8 +22,12 @@ if (-not (Test-Path $launcherPath)) {
   throw "Could not find launcher script: $launcherPath"
 }
 
-$desktop = [Environment]::GetFolderPath("DesktopDirectory")
-$shortcutPath = Join-Path $desktop "$ShortcutName.lnk"
+$shortcutDir = if ($Startup) {
+  [Environment]::GetFolderPath("Startup")
+} else {
+  [Environment]::GetFolderPath("DesktopDirectory")
+}
+$shortcutPath = Join-Path $shortcutDir "$ShortcutName.lnk"
 $arguments = @(
   "-NoProfile",
   "-ExecutionPolicy",
@@ -45,6 +50,7 @@ if ($SkipBuild) {
 
 if ($DryRun) {
   Write-Output "Shortcut path: $shortcutPath"
+  Write-Output ("Mode: " + $(if ($Startup) { "startup" } else { "desktop" }))
   Write-Output "Target: powershell.exe"
   Write-Output ("Arguments: " + ($arguments -join " "))
   Write-Output "Working directory: $repoRoot"
