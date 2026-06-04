@@ -16,7 +16,8 @@
     "start-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-agent-room.ps1",
     "install-shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-shortcut.ps1",
     "watch-room": "node scripts/room-watch.mjs",
-    "notify-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/notify-agent-room.ps1"
+    "notify-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/notify-agent-room.ps1",
+    "start-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-room-watch.ps1"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

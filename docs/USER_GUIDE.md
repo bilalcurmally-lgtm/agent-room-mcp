@@ -291,6 +291,13 @@ npm run notify-room -- -DryRun
 npm run watch-room -- --agents claude-opus,codex-desktop --command "powershell -NoProfile -ExecutionPolicy Bypass -File D:\projects\agent-room-mcp\scripts\notify-agent-room.ps1"
 ```
 
+The simpler Windows launcher is:
+
+```powershell
+npm run start-watch
+npm run start-watch -- -Once -DryRun
+```
+
 This is the notification backbone. Whether it can truly wake a specific LLM app depends on whether
 that app exposes a hook, CLI, automation, or API that can receive the command.
 

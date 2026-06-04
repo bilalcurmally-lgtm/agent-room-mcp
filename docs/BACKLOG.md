@@ -89,6 +89,8 @@ Current state:
 - Watcher helper behavior is covered in `test/room-watch.test.ts`.
 - Windows notification helper exists at `scripts/notify-agent-room.ps1`.
 - `npm run notify-room` can show or dry-run desktop notifications from watcher environment values.
+- Watcher launcher exists at `scripts/start-room-watch.ps1`.
+- `npm run start-watch` starts the watcher with Windows notifications and default agents.
 
 Needed:
 
