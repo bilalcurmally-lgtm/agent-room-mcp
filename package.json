@@ -15,7 +15,8 @@
     "dashboard": "tsx src/dashboard.ts",
     "start-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-agent-room.ps1",
     "install-shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-shortcut.ps1",
-    "watch-room": "node scripts/room-watch.mjs"
+    "watch-room": "node scripts/room-watch.mjs",
+    "notify-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/notify-agent-room.ps1"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

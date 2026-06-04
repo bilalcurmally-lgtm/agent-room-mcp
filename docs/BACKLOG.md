@@ -87,6 +87,8 @@ Current state:
 - `npm run watch-room` polls for routed unread messages across configured agents.
 - Watcher supports `--dry-run`, `--once`, `--interval-ms`, `--agents`, and optional `--command`.
 - Watcher helper behavior is covered in `test/room-watch.test.ts`.
+- Windows notification helper exists at `scripts/notify-agent-room.ps1`.
+- `npm run notify-room` can show or dry-run desktop notifications from watcher environment values.
 
 Needed:
 

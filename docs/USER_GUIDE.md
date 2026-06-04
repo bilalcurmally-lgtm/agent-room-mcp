@@ -284,6 +284,13 @@ That command receives:
 - `AGENT_ROOM_AGENT`
 - `AGENT_ROOM_PING`
 
+On Windows, use the bundled desktop notification helper:
+
+```powershell
+npm run notify-room -- -DryRun
+npm run watch-room -- --agents claude-opus,codex-desktop --command "powershell -NoProfile -ExecutionPolicy Bypass -File D:\projects\agent-room-mcp\scripts\notify-agent-room.ps1"
+```
+
 This is the notification backbone. Whether it can truly wake a specific LLM app depends on whether
 that app exposes a hook, CLI, automation, or API that can receive the command.
 
