@@ -63,6 +63,13 @@ npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch
 npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch -Startup
 ```
 
+To install dashboard and watcher shortcuts together:
+
+```powershell
+npm run install-suite
+npm run install-suite -- -Startup
+```
+
 To remove shortcuts later:
 
 ```powershell
@@ -70,6 +77,8 @@ npm run install-shortcut -- -Remove
 npm run install-shortcut -- -Startup -Remove
 npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch -Remove
 npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch -Startup -Remove
+npm run install-suite -- -Remove
+npm run install-suite -- -Startup -Remove
 ```
 
 After `npm link`, you can use:
