@@ -188,8 +188,12 @@ describe("dashboard server", () => {
     expect(html).toContain("applyRoutePreset");
     expect(html).toContain("[STATUS:");
     expect(html).toContain("[NEXT:");
-    expect(html).toContain("Add project folder");
+    expect(html).toContain("Add or save project folder");
     expect(html).toContain("Project folder");
+    expect(html).toContain("Browse folder");
+    expect(html).toContain("Load selected project");
+    expect(html).toContain("Delete project folder");
+    expect(html).toContain("showDirectoryPicker");
     expect(html).toContain("Search room");
     expect(html).toContain("room-clock");
     expect(html).toContain("formatRelativeTime");
@@ -477,5 +481,48 @@ describe("dashboard server", () => {
     expect(snapshot.projectRecords).toMatchObject([
       { id: "audit-cockpit", name: "Audit Cockpit", folderPath: "D:\\projects\\audit-cockpit" }
     ]);
+  });
+
+  it("lets the user update and delete project folders from the dashboard API", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    await fetch(`${server.url}/api/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "agent-room-mcp",
+        name: "Agent Room",
+        folderPath: "D:\\projects\\agent-room-mcp"
+      })
+    });
+
+    const updateResponse = await fetch(`${server.url}/api/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "agent-room-mcp",
+        name: "Agent Room MCP",
+        folderPath: "D:\\projects\\agent-room-mcp-v2",
+        status: "active"
+      })
+    });
+    expect(updateResponse.status).toBe(201);
+    await expect(updateResponse.json()).resolves.toMatchObject({
+      id: "agent-room-mcp",
+      name: "Agent Room MCP",
+      folderPath: "D:\\projects\\agent-room-mcp-v2"
+    });
+
+    const deleteResponse = await fetch(`${server.url}/api/projects/delete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: "agent-room-mcp" })
+    });
+    expect(deleteResponse.status).toBe(200);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.projectRecords).toEqual([]);
   });
 });

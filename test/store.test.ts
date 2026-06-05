@@ -343,6 +343,36 @@ describe("AgentRoomStore", () => {
     ]);
     expect(await store.listProjects()).toEqual(["audit-cockpit", "loose-tag"]);
   });
+
+  it("updates and deletes project records without deleting tagged history", async () => {
+    const store = await makeStore();
+    await store.upsertProject({
+      id: "audit-cockpit",
+      name: "Audit Cockpit",
+      folderPath: "D:\\projects\\audit-cockpit"
+    });
+    await store.postMessage(message({ from: "user", to: "all", topic: "Still tagged", project: "audit-cockpit" }));
+
+    await expect(
+      store.upsertProject({
+        id: "audit-cockpit",
+        name: "Audit Cockpit V2",
+        folderPath: "D:\\projects\\audit-cockpit-v2",
+        status: "active"
+      })
+    ).resolves.toMatchObject({
+      id: "audit-cockpit",
+      name: "Audit Cockpit V2",
+      folderPath: "D:\\projects\\audit-cockpit-v2"
+    });
+
+    await expect(store.deleteProject({ id: "audit-cockpit" })).resolves.toMatchObject({
+      id: "audit-cockpit",
+      name: "Audit Cockpit V2"
+    });
+    expect(await store.listProjectRecords()).toEqual([]);
+    expect(await store.listProjects()).toEqual(["audit-cockpit"]);
+  });
 });
 
 async function makeStore(): Promise<AgentRoomStore> {

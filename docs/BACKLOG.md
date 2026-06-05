@@ -19,11 +19,14 @@ Implemented:
 - Dashboard should let the user create/select a project by name and folder path.
 - Agents should see the project folder path in dashboard/API snapshots.
 - The project selector should show registered projects before tag-only projects.
+- Dashboard can load a selected project record into the form for editing.
+- Dashboard can delete registered project folder records without deleting tagged room history.
+- Dashboard includes a best-effort folder browse helper where the browser supports it.
+- MCP includes `delete_project` for removing registered project records.
 
 Follow-up:
 
-- Add a nicer folder picker once this becomes a packaged app.
-- Add edit/delete project controls after dogfooding.
+- Add a native full-path folder picker once this becomes a packaged app.
 
 ## Priority 2 - Task Editing
 

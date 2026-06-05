@@ -115,6 +115,12 @@ For real workspaces, use **Add project folder**. Add:
 - optional repo URL
 
 Agents will receive that folder path when they check in, so they know which project directory to use.
+Use **Load selected project** to edit the selected project folder, then **Add or save project
+folder** to save it. Use **Delete project folder** to remove only the folder record; existing
+messages, tasks, and decisions tagged with that project stay in the room.
+
+If your browser supports folder picking, **Browse folder** can help select a folder. Browsers do not
+always expose the full Windows path, so the typed folder path is still the value agents should trust.
 
 Use:
 

@@ -48,6 +48,7 @@ describe("createServer", () => {
         "check_in",
         "mark_messages_read",
         "register_project",
+        "delete_project",
         "list_projects",
         "append_task_note"
       ])

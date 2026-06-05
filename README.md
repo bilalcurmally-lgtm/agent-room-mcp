@@ -92,6 +92,7 @@ For a global room, use a directory outside any single application repo, such as
 - `append_task_note`
 - `record_decision`
 - `register_project`
+- `delete_project`
 - `list_projects`
 - `get_room_status`
 
@@ -100,6 +101,8 @@ separate work by repo or initiative.
 
 Registered projects add a real folder path on top of that project tag, so agents know which
 workspace to open. Example: `audit-cockpit` can point at `D:\projects\audit-cockpit`.
+Deleting a registered project removes only the folder record; tagged messages, tasks, and decisions
+remain in the room history.
 
 Agents should treat `check_in` as their first move when joining or resuming work. It returns unread
 messages, assigned tasks, open tasks, recent decisions, room status, and current room time in one

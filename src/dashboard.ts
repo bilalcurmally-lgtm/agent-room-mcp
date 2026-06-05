@@ -217,6 +217,15 @@ async function routeRequest(
     return;
   }
 
+  if (method === "POST" && url.pathname === "/api/projects/delete") {
+    const body = await readJsonBody(request);
+    const project = await store.deleteProject({
+      id: requireString(body.id, "id")
+    });
+    sendJson(response, 200, project);
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/config") {
     const body = await readJsonBody(request);
     const config = await store.updateConfig({

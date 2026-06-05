@@ -85,6 +85,10 @@ export interface UpsertProjectInput {
   status?: string;
 }
 
+export interface DeleteProjectInput {
+  id: string;
+}
+
 export interface RoomProject extends UpsertProjectInput {
   createdAt: string;
   updatedAt: string;
@@ -471,6 +475,19 @@ export class AgentRoomStore {
       };
       projects.push(project);
       projects.sort((a, b) => a.name.localeCompare(b.name));
+      await this.writeProjects(projects);
+      return project;
+    });
+  }
+
+  async deleteProject(input: DeleteProjectInput): Promise<RoomProject> {
+    validateText("id", input.id);
+
+    return this.withExclusiveWrite(async () => {
+      const projects = await this.readProjects();
+      const index = projects.findIndex((project) => project.id === input.id);
+      if (index < 0) throw new Error(`Project not found: ${input.id}`);
+      const [project] = projects.splice(index, 1);
       await this.writeProjects(projects);
       return project;
     });

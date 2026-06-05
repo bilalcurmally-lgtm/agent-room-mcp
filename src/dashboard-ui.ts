@@ -114,7 +114,11 @@ export const dashboardHtml = `<!doctype html>
         <input id="project-name" placeholder="Project name" />
         <input id="project-folder" placeholder="Project folder, e.g. D:\\projects\\audit-cockpit" />
         <input id="project-repo" placeholder="Repo URL (optional)" />
-        <button type="submit">Add project folder</button>
+        <input id="project-status" placeholder="Status (optional)" />
+        <button id="project-browse" type="button">Browse folder</button>
+        <button id="project-load" type="button">Load selected project</button>
+        <button type="submit">Add or save project folder</button>
+        <button id="project-delete" type="button">Delete project folder</button>
       </form>
       <form id="task-form" class="composer">
         <input id="task-title" placeholder="Task title" />
@@ -176,6 +180,10 @@ export const dashboardHtml = `<!doctype html>
     const projectName = document.getElementById("project-name");
     const projectFolder = document.getElementById("project-folder");
     const projectRepo = document.getElementById("project-repo");
+    const projectStatus = document.getElementById("project-status");
+    const projectBrowse = document.getElementById("project-browse");
+    const projectLoad = document.getElementById("project-load");
+    const projectDelete = document.getElementById("project-delete");
     const taskForm = document.getElementById("task-form");
     const taskTitle = document.getElementById("task-title");
     const taskBody = document.getElementById("task-body");
@@ -336,7 +344,23 @@ export const dashboardHtml = `<!doctype html>
       );
     }
 
+    function selectedProjectRecord() {
+      return lastSnapshot?.projectRecords?.find((project) => project.id === selectedProject);
+    }
+
+    function fillProjectForm(project) {
+      if (!project) return;
+      projectId.value = project.id || "";
+      projectName.value = project.name || "";
+      projectFolder.value = project.folderPath || "";
+      projectRepo.value = project.repoUrl || "";
+      projectStatus.value = project.status || "";
+    }
+
+    let lastSnapshot;
+
     function renderSnapshot(snapshot) {
+      lastSnapshot = snapshot;
       renderSelect(snapshot.projects || []);
       renderProgress(snapshot.progress);
       renderStatus(snapshot.status);
@@ -383,7 +407,7 @@ export const dashboardHtml = `<!doctype html>
       if (!snapshot.staleTasks?.length) setEmpty(staleTasks, "No stale active tasks.");
 
       projectRecords.replaceChildren(...(snapshot.projectRecords || []).map((project) =>
-        card("task", project.name + " · " + project.id, project.folderPath)
+        card("task", project.name + " · " + project.id, project.folderPath + (project.status ? "\\nStatus: " + project.status : ""))
       ));
       if (!snapshot.projectRecords?.length) setEmpty(projectRecords, "No project folders yet.");
 
@@ -485,18 +509,48 @@ export const dashboardHtml = `<!doctype html>
       const name = projectName.value.trim();
       const folderPath = projectFolder.value.trim();
       const repoUrl = projectRepo.value.trim();
+      const status = projectStatus.value.trim();
       if (!id || !name || !folderPath) return;
       await fetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id, name, folderPath, repoUrl: repoUrl || undefined, status: "active" })
+        body: JSON.stringify({ id, name, folderPath, repoUrl: repoUrl || undefined, status: status || undefined })
       });
       selectedProject = id;
       projectId.value = "";
       projectName.value = "";
       projectFolder.value = "";
       projectRepo.value = "";
+      projectStatus.value = "";
       await loadSnapshot();
+    });
+
+    projectLoad.addEventListener("click", () => {
+      fillProjectForm(selectedProjectRecord());
+    });
+
+    projectDelete.addEventListener("click", async () => {
+      const id = projectId.value.trim() || selectedProjectRecord()?.id;
+      if (!id) return;
+      if (!window.confirm("Delete this registered project folder? Room history tagged with this project stays intact.")) return;
+      await fetch("/api/projects/delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (selectedProject === id) selectedProject = "all";
+      projectId.value = "";
+      projectName.value = "";
+      projectFolder.value = "";
+      projectRepo.value = "";
+      projectStatus.value = "";
+      await loadSnapshot();
+    });
+
+    projectBrowse.addEventListener("click", async () => {
+      if (!window.showDirectoryPicker) return;
+      const directory = await window.showDirectoryPicker();
+      projectFolder.value = directory.name;
     });
 
     taskForm.addEventListener("submit", async (event) => {

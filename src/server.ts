@@ -52,6 +52,10 @@ const RegisterProjectInput = {
   status: z.string().max(MAX_TEXT_LENGTH).optional()
 };
 
+const DeleteProjectInput = {
+  id: z.string().min(1).max(MAX_TEXT_LENGTH)
+};
+
 const MarkMessagesReadInput = {
   agent: z.string().min(1).max(MAX_TEXT_LENGTH),
   throughId: z.string().min(1).optional(),
@@ -178,6 +182,16 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       inputSchema: RegisterProjectInput
     },
     async (input) => jsonResult(await store.upsertProject(input))
+  );
+
+  server.registerTool(
+    "delete_project",
+    {
+      title: "Delete project",
+      description: "Remove a registered project folder without deleting tagged room history.",
+      inputSchema: DeleteProjectInput
+    },
+    async (input) => jsonResult(await store.deleteProject(input))
   );
 
   server.registerTool(
