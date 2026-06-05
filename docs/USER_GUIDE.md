@@ -56,11 +56,20 @@ To make Agent Room start when Windows starts:
 npm run install-shortcut -- -Startup
 ```
 
+To create a watcher shortcut for room notifications:
+
+```powershell
+npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch
+npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch -Startup
+```
+
 To remove shortcuts later:
 
 ```powershell
 npm run install-shortcut -- -Remove
 npm run install-shortcut -- -Startup -Remove
+npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch -Remove
+npm run install-shortcut -- -ShortcutName "Agent Room Watch" -Watch -Startup -Remove
 ```
 
 After `npm link`, you can use:

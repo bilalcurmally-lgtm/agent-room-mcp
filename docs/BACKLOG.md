@@ -143,6 +143,7 @@ Implemented:
 - `npm run install-shortcut` creates a desktop shortcut for the dashboard launcher.
 - `npm run install-shortcut -- -Startup` creates an optional Windows startup shortcut.
 - `npm run install-shortcut -- -Remove` removes desktop or startup shortcuts cleanly.
+- `npm run install-shortcut -- -Watch` creates desktop/startup shortcuts for the watcher launcher.
 
 Needed:
 

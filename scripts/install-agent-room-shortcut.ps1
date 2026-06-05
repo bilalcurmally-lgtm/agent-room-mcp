@@ -4,6 +4,9 @@ param(
   [int]$Port = 4777,
   [switch]$NoOpen,
   [switch]$SkipBuild,
+  [switch]$Watch,
+  [string]$Agents = "claude-opus,codex-desktop",
+  [int]$IntervalMs = 5000,
   [switch]$Startup,
   [switch]$Remove,
   [switch]$DryRun
@@ -17,7 +20,8 @@ function Quote-ShortcutArg {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$launcherPath = Join-Path $PSScriptRoot "start-agent-room.ps1"
+$launcherName = if ($Watch) { "start-room-watch.ps1" } else { "start-agent-room.ps1" }
+$launcherPath = Join-Path $PSScriptRoot $launcherName
 
 if (-not (Test-Path $launcherPath)) {
   throw "Could not find launcher script: $launcherPath"
@@ -34,24 +38,39 @@ $arguments = @(
   "-ExecutionPolicy",
   "Bypass",
   "-File",
-  (Quote-ShortcutArg $launcherPath),
-  "-Room",
-  (Quote-ShortcutArg $Room),
-  "-Port",
-  [string]$Port
+  (Quote-ShortcutArg $launcherPath)
 )
 
-if ($NoOpen) {
-  $arguments += "-NoOpen"
-}
+if ($Watch) {
+  $arguments += @(
+    "-Agents",
+    (Quote-ShortcutArg $Agents),
+    "-Room",
+    (Quote-ShortcutArg $Room),
+    "-IntervalMs",
+    [string]$IntervalMs
+  )
+} else {
+  $arguments += @(
+    "-Room",
+    (Quote-ShortcutArg $Room),
+    "-Port",
+    [string]$Port
+  )
 
-if ($SkipBuild) {
-  $arguments += "-SkipBuild"
+  if ($NoOpen) {
+    $arguments += "-NoOpen"
+  }
+
+  if ($SkipBuild) {
+    $arguments += "-SkipBuild"
+  }
 }
 
 if ($DryRun) {
   Write-Output "Shortcut path: $shortcutPath"
   Write-Output ("Mode: " + $(if ($Startup) { "startup" } else { "desktop" }))
+  Write-Output ("Target mode: " + $(if ($Watch) { "watcher" } else { "dashboard" }))
   if ($Remove) {
     Write-Output "Action: remove shortcut"
     exit 0
@@ -78,7 +97,7 @@ $shortcut.TargetPath = "powershell.exe"
 $shortcut.Arguments = $arguments -join " "
 $shortcut.WorkingDirectory = $repoRoot
 $shortcut.WindowStyle = 1
-$shortcut.Description = "Open the Agent Room dashboard"
+$shortcut.Description = if ($Watch) { "Start Agent Room watcher notifications" } else { "Open the Agent Room dashboard" }
 $shortcut.Save()
 
 Write-Output "Created shortcut: $shortcutPath"
