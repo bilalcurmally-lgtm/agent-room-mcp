@@ -59,13 +59,17 @@ just dashboard-v2:
 3. The new message should appear in Claude's context (it should reference it without
    being told). Re-running a prompt with no new messages prints nothing (or "ROOM: 0 new").
 
-Automated helper coverage lives in `test/room-ping.test.ts`. The full end-to-end
-acceptance test still requires a live Claude Code session because hook stdout injection is
-owned by Claude Code, not this repo.
+Automated coverage:
 
-## Optional follow-on (separate)
-- A first local watcher exists at `scripts/room-watch.mjs`; it can poll the room and run a local
-  command when routed messages appear. True unattended wake-up still depends on each agent app
-  exposing a hook, CLI, automation, or API.
+- `test/room-ping.test.ts` — selection and formatting helpers
+- `test/ping-watch.integration.test.ts` — live dashboard snapshot + `runRoomPing`
+- `npm run dogfood-ping-watch` — scripted ping/watch dogfood
+
+Manual acceptance still requires a live Claude Code session because hook stdout injection is
+owned by Claude Code, not this repo. See [PING_WATCH.md](PING_WATCH.md).
+
+## Watcher and Codex/Cursor wake paths
+- `scripts/room-watch.mjs` polls the room and runs `scripts/wake-agent.ps1` with `--wake`
+- Codex and Cursor use watcher toasts plus `.wake-inbox-<agent>.txt`; they do not use this hook
 - This hook does NOT depend on Issue A (read-only). Issue A (HTTP author spoofing) is
   still its own ~10-line fix.

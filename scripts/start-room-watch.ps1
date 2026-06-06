@@ -1,5 +1,5 @@
 param(
-  [string]$Agents = "claude-opus,codex-desktop",
+  [string]$Agents = "claude-opus,codex-desktop,cursor",
   [string]$Room = "D:\projects\.agent-room",
   [string]$Url = "http://127.0.0.1:4777/api/snapshot?project=all",
   [int]$IntervalMs = 5000,
@@ -10,15 +10,14 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$notifyPath = Join-Path $PSScriptRoot "notify-agent-room.ps1"
+$wakePath = Join-Path $PSScriptRoot "wake-agent.ps1"
 
-if (-not (Test-Path $notifyPath)) {
-  throw "Could not find notification script: $notifyPath"
+if (-not (Test-Path $wakePath)) {
+  throw "Could not find wake script: $wakePath"
 }
 
 Set-Location $repoRoot
 
-$notifyCommand = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$notifyPath`""
 $watchArgs = @(
   "scripts/room-watch.mjs",
   "--agents",
@@ -29,8 +28,7 @@ $watchArgs = @(
   $Url,
   "--interval-ms",
   [string]$IntervalMs,
-  "--command",
-  $notifyCommand
+  "--wake"
 )
 
 if ($Once) {

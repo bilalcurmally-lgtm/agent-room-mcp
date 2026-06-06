@@ -70,14 +70,26 @@ describe("AgentRoomStore", () => {
       notes: [expect.objectContaining({ by: "user", body: "Needs reviewer decision" })]
     });
 
-    expect(await store.appendTaskNote({ taskId: task.id, body: "Commit 123abc is ready.", by: "codex" }))
-      .toMatchObject({
-        id: task.id,
-        notes: [
-          expect.objectContaining({ body: "Needs reviewer decision" }),
-          expect.objectContaining({ by: "codex", body: "Commit 123abc is ready." })
-        ]
-      });
+    expect(
+      await store.appendTaskNote({
+        taskId: task.id,
+        body: "Ready for review.",
+        branch: "codex/task-editing",
+        commit: "123abc",
+        by: "codex"
+      })
+    ).toMatchObject({
+      id: task.id,
+      notes: [
+        expect.objectContaining({ body: "Needs reviewer decision" }),
+        expect.objectContaining({
+          by: "codex",
+          body: "Ready for review.",
+          branch: "codex/task-editing",
+          commit: "123abc"
+        })
+      ]
+    });
   });
 
   it("records decisions in markdown and reports room status", async () => {
@@ -288,6 +300,42 @@ describe("AgentRoomStore", () => {
     expect(checkIn.staleTasks.map((warning) => warning.taskId)).not.toContain(fresh.id);
   });
 
+  it("warns agents about stale messages and decisions during check-in", async () => {
+    const store = await makeStore();
+    await store.registerAgent(agent({ agent: "codex" }));
+    const message = await store.postMessage({
+      from: "user",
+      to: "codex",
+      topic: "Follow up tomorrow",
+      body: "We should revisit this tomorrow.",
+      project: "alpha"
+    });
+    const decision = await store.recordDecision({
+      title: "Use file store",
+      decision: "Keep JSON files",
+      rationale: "Simple ops",
+      project: "alpha"
+    });
+    const messages = (await readFile(join(store.roomDir, "messages.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    messages[0].time = "2000-01-01T00:00:00.000Z";
+    await writeFile(
+      join(store.roomDir, "messages.jsonl"),
+      `${messages.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+      "utf8"
+    );
+    const decisions = JSON.parse(await readFile(join(store.roomDir, "decisions.json"), "utf8"));
+    decisions[0].time = "2000-01-01T00:00:00.000Z";
+    await writeFile(join(store.roomDir, "decisions.json"), `${JSON.stringify(decisions, null, 2)}\n`, "utf8");
+
+    const checkIn = await store.checkIn({ agent: "codex", project: "alpha" });
+
+    expect(checkIn.staleMessages).toMatchObject([{ kind: "message", id: message.id }]);
+    expect(checkIn.staleDecisions).toMatchObject([{ kind: "decision", id: decision.id }]);
+  });
+
   it("uses room config for stale task threshold", async () => {
     const store = await makeStore();
     await store.registerAgent(agent({ agent: "codex" }));
@@ -301,8 +349,28 @@ describe("AgentRoomStore", () => {
     await store.updateConfig({ staleTaskHours: 1 });
     const checkIn = await store.checkIn({ agent: "codex", project: "alpha" });
 
-    expect(await store.getConfig()).toMatchObject({ staleTaskHours: 1 });
+    expect(await store.getConfig()).toMatchObject({ staleTaskHours: 1, currentUser: "user", enforceProtocol: false });
     expect(checkIn.staleTasks).toMatchObject([{ taskId: task.id, ageHours: expect.any(Number) }]);
+  });
+
+  it("stores a durable current-user identity in room config", async () => {
+    const store = await makeStore();
+
+    expect(await store.getConfig()).toMatchObject({ currentUser: "user" });
+
+    expect(await store.updateConfig({ currentUser: "bill" })).toMatchObject({ currentUser: "bill" });
+    expect(await store.getConfig()).toMatchObject({ currentUser: "bill" });
+
+    await store.upsertProject({
+      id: "alpha",
+      name: "Alpha",
+      folderPath: "D:\\projects\\alpha"
+    });
+    expect(await store.updateConfig({ activeProject: "alpha" })).toMatchObject({ activeProject: "alpha" });
+    expect((await store.updateConfig({ activeProject: null })).activeProject).toBeUndefined();
+
+    const raw = JSON.parse(await readFile(join(store.roomDir, "config.json"), "utf8"));
+    expect(raw).toMatchObject({ currentUser: "bill" });
   });
 
   it("lists projects from messages, tasks, and decisions with unsorted fallback", async () => {

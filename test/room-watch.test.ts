@@ -39,16 +39,20 @@ describe("room-watch helpers", () => {
 
   it("resolves watcher options from cli args", () => {
     expect(
-      resolveWatchOptions([
-        "--agents",
-        "claude-opus,codex-desktop",
-        "--command",
-        "notify-send AgentRoom",
-        "--interval-ms",
-        "1000",
-        "--once",
-        "--dry-run"
-      ])
+      resolveWatchOptions(
+        [
+          "--agents",
+          "claude-opus,codex-desktop",
+          "--command",
+          "notify-send AgentRoom",
+          "--interval-ms",
+          "1000",
+          "--once",
+          "--dry-run"
+        ],
+        {},
+        "D:/projects/agent-room-mcp"
+      )
     ).toMatchObject({
       agents: ["claude-opus", "codex-desktop"],
       command: "notify-send AgentRoom",
@@ -56,5 +60,15 @@ describe("room-watch helpers", () => {
       once: true,
       dryRun: true
     });
+  });
+
+  it("defaults agents to include cursor and can resolve --wake command", async () => {
+    const { defaultWakeCommand } = await import("../scripts/room-watch.mjs");
+    expect(resolveWatchOptions(["--wake", "--once"], {}, "D:/projects/agent-room-mcp")).toMatchObject({
+      agents: ["claude-opus", "codex-desktop", "cursor"],
+      wake: true,
+      command: defaultWakeCommand("D:/projects/agent-room-mcp")
+    });
+    expect(defaultWakeCommand("D:/projects/agent-room-mcp")).toContain("wake-agent.ps1");
   });
 });

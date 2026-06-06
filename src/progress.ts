@@ -19,16 +19,16 @@ interface RoadmapFile {
   items: RoadmapItem[];
 }
 
-const DEFAULT_ROADMAP_ITEMS: RoadmapItem[] = [
+export const DEFAULT_ROADMAP_ITEMS: RoadmapItem[] = [
   { title: "Project Registry And Folder Picker", status: "done" },
   { title: "Task Editing", status: "done" },
-  { title: "Search And History", status: "partial" },
-  { title: "App-Specific Setup Guides", status: "partial" },
-  { title: "Ping/Watch Reliability", status: "partial" },
-  { title: "Protocol Enforcement", status: "todo" },
-  { title: "Easy Launcher", status: "todo" },
+  { title: "Search And History", status: "done" },
+  { title: "App-Specific Setup Guides", status: "done" },
+  { title: "Ping/Watch Reliability", status: "done" },
+  { title: "Protocol Enforcement", status: "done" },
+  { title: "Easy Launcher", status: "done" },
   { title: "Temporal Awareness", status: "partial" },
-  { title: "Roadmap Progress Honesty", status: "partial" }
+  { title: "Roadmap Progress Honesty", status: "done" }
 ];
 
 export async function loadRoadmapItems(path = "docs/ROADMAP.json"): Promise<RoadmapItem[]> {

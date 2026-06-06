@@ -4,9 +4,15 @@ import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { assertProtocolCompliant } from "./protocol.js";
 import { AgentRoomStore, MAX_TEXT_LENGTH } from "./store.js";
 
 const VERSION = "0.1.0";
+
+const AttachmentLinkInput = z.object({
+  name: z.string().min(1).max(MAX_TEXT_LENGTH),
+  url: z.string().min(1).max(MAX_TEXT_LENGTH)
+});
 
 const MessageInput = {
   from: z.string().min(1),
@@ -15,7 +21,25 @@ const MessageInput = {
   body: z.string().min(1).max(MAX_TEXT_LENGTH),
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
   source: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
-  replyTo: z.string().optional()
+  replyTo: z.string().optional(),
+  status: z.string().max(MAX_TEXT_LENGTH).optional(),
+  next: z.string().max(MAX_TEXT_LENGTH).optional(),
+  phase: z.string().max(MAX_TEXT_LENGTH).optional(),
+  attachmentIds: z.array(z.string().min(1)).optional(),
+  links: z.array(AttachmentLinkInput).optional()
+};
+
+const UploadAttachmentInput = {
+  fileName: z.string().min(1).max(MAX_TEXT_LENGTH),
+  mimeType: z.string().min(1).max(MAX_TEXT_LENGTH),
+  contentBase64: z.string().min(1),
+  uploadedBy: z.string().max(MAX_TEXT_LENGTH).optional()
+};
+
+const LinkAttachmentInput = {
+  name: z.string().min(1).max(MAX_TEXT_LENGTH),
+  url: z.string().min(1).max(MAX_TEXT_LENGTH),
+  uploadedBy: z.string().max(MAX_TEXT_LENGTH).optional()
 };
 
 const ReadMessagesInput = {
@@ -30,7 +54,9 @@ const CreateTaskInput = {
   body: z.string().min(1).max(MAX_TEXT_LENGTH),
   owner: z.string().max(MAX_TEXT_LENGTH).optional(),
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
-  source: z.string().min(1).max(MAX_TEXT_LENGTH).optional()
+  source: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+  attachmentIds: z.array(z.string().min(1)).optional(),
+  links: z.array(AttachmentLinkInput).optional()
 };
 
 const ClaimTaskInput = {
@@ -79,13 +105,21 @@ const UpdateTaskInput = {
   status: z.enum(["open", "claimed", "blocked", "done"]),
   owner: z.string().max(MAX_TEXT_LENGTH).optional(),
   note: z.string().max(MAX_TEXT_LENGTH).optional(),
-  by: z.string().max(MAX_TEXT_LENGTH).optional()
+  branch: z.string().max(MAX_TEXT_LENGTH).optional(),
+  commit: z.string().max(MAX_TEXT_LENGTH).optional(),
+  by: z.string().max(MAX_TEXT_LENGTH).optional(),
+  attachmentIds: z.array(z.string().min(1)).optional(),
+  links: z.array(AttachmentLinkInput).optional()
 };
 
 const AppendTaskNoteInput = {
   taskId: z.string().min(1),
   body: z.string().min(1).max(MAX_TEXT_LENGTH),
-  by: z.string().max(MAX_TEXT_LENGTH).optional()
+  branch: z.string().max(MAX_TEXT_LENGTH).optional(),
+  commit: z.string().max(MAX_TEXT_LENGTH).optional(),
+  by: z.string().max(MAX_TEXT_LENGTH).optional(),
+  attachmentIds: z.array(z.string().min(1)).optional(),
+  links: z.array(AttachmentLinkInput).optional()
 };
 
 const RecordDecisionInput = {
@@ -94,7 +128,9 @@ const RecordDecisionInput = {
   rationale: z.string().min(1).max(MAX_TEXT_LENGTH),
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
   source: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
-  links: z.array(z.string().max(MAX_TEXT_LENGTH)).optional()
+  links: z.array(z.string().max(MAX_TEXT_LENGTH)).optional(),
+  attachmentIds: z.array(z.string().min(1)).optional(),
+  linkAttachments: z.array(AttachmentLinkInput).optional()
 };
 
 export async function createServer(roomDir: string): Promise<McpServer> {
@@ -111,7 +147,41 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "Post an append-only message to another agent or to all agents.",
       inputSchema: MessageInput
     },
-    async (input) => jsonResult(await store.postMessage(input))
+    async (input) => {
+      const config = await store.getConfig();
+      assertProtocolCompliant(input, config.enforceProtocol);
+      return jsonResult(await store.postMessage(input));
+    }
+  );
+
+  server.registerTool(
+    "upload_attachment",
+    {
+      title: "Upload attachment",
+      description:
+        "Store a file in the room attachments directory (max 5 MB). Returns an attachment id for post_message attachmentIds.",
+      inputSchema: UploadAttachmentInput
+    },
+    async (input) => jsonResult(await store.uploadAttachment(input))
+  );
+
+  server.registerTool(
+    "link_attachment",
+    {
+      title: "Link attachment",
+      description: "Register an external http(s) link in the room attachment index.",
+      inputSchema: LinkAttachmentInput
+    },
+    async (input) => jsonResult(await store.linkAttachment(input))
+  );
+
+  server.registerTool(
+    "list_attachments",
+    {
+      title: "List attachments",
+      description: "List file and link attachments stored in the room."
+    },
+    async () => jsonResult(await store.listAttachments())
   );
 
   server.registerTool(
@@ -221,7 +291,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     "update_task",
     {
       title: "Update task",
-      description: "Update a task status, optionally reassign the owner, and optionally append a note.",
+      description:
+        "Update a task status, optionally reassign the owner, and optionally append a note with branch or commit links.",
       inputSchema: UpdateTaskInput
     },
     async (input) => jsonResult(await store.updateTask(input))
@@ -231,7 +302,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     "append_task_note",
     {
       title: "Append task note",
-      description: "Append a timestamped note to a task without changing its status or owner.",
+      description:
+        "Append a timestamped note to a task without changing its status or owner. Optional branch and commit fields keep links structured.",
       inputSchema: AppendTaskNoteInput
     },
     async (input) => jsonResult(await store.appendTaskNote(input))

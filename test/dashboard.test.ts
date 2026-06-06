@@ -57,8 +57,21 @@ describe("dashboard server", () => {
         total: expect.any(Number),
         remaining: expect.any(Number),
         percent: expect.any(Number),
+        roomDriven: true,
         items: expect.arrayContaining([
-          expect.objectContaining({ title: "Project Registry And Folder Picker", status: "done" })
+          expect.objectContaining({
+            title: "Project Registry And Folder Picker",
+            fileStatus: "done",
+            roomStatus: "todo",
+            status: "todo",
+            source: "room",
+            evidence: expect.stringContaining("registered project")
+          }),
+          expect.objectContaining({
+            title: "Roadmap Progress Honesty",
+            status: "done",
+            evidence: expect.stringContaining("ROADMAP.json")
+          })
         ])
       },
       roomTime: {
@@ -117,8 +130,59 @@ describe("dashboard server", () => {
         topic: "Review handoff",
         project: "agent-room-mcp",
         missing: ["[STATUS:]", "[NEXT:]"],
+        invalid: [],
         message: expect.stringContaining("Missing [STATUS:] and [NEXT:]")
       }
+    ]);
+  });
+
+  it("accepts structured protocol fields on dashboard messages", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        body: "C1 routing is ready.",
+        to: "all",
+        status: "implementing",
+        next: "Claude review",
+        phase: "C1",
+        project: "agent-room-mcp"
+      })
+    });
+    expect(response.status).toBe(201);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.messages).toMatchObject([
+      {
+        body: expect.stringContaining("[STATUS: implementing]"),
+        status: "implementing",
+        next: "Claude review",
+        phase: "C1"
+      }
+    ]);
+    expect(snapshot.protocolWarnings).toEqual([]);
+  });
+
+  it("flags invalid protocol phase labels", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    await store.postMessage({
+      from: "codex-desktop",
+      to: "all",
+      topic: "Bad phase",
+      body: "[STATUS: implementing] Ready. [NEXT: review] [PHASE: sprint-9]",
+      project: "agent-room-mcp"
+    });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.protocolWarnings).toMatchObject([
+      { invalid: ["[PHASE: sprint-9]"], missing: [] }
     ]);
   });
 
@@ -180,42 +244,94 @@ describe("dashboard server", () => {
     expect(html).toContain("Create task");
     expect(html).toContain("Record decision");
     expect(html).toContain("formatTimestamp");
-    expect(html).toContain("Your local time");
+    expect(html).toContain("Room time");
     expect(html).toContain("Route to");
     expect(html).toContain("To all");
     expect(html).toContain("To Codex");
     expect(html).toContain("To Claude");
     expect(html).toContain("applyRoutePreset");
-    expect(html).toContain("[STATUS:");
-    expect(html).toContain("[NEXT:");
+    expect(html).toContain("message-status");
+    expect(html).toContain("message-phase");
+    expect(html).toContain("message-next");
+    expect(html).toContain("enforce-protocol");
     expect(html).toContain("Add or save project folder");
     expect(html).toContain("Project folder");
     expect(html).toContain("Browse folder");
     expect(html).toContain("Load selected project");
     expect(html).toContain("Delete project folder");
     expect(html).toContain("showDirectoryPicker");
-    expect(html).toContain("Search room");
+    expect(html).toContain('id="search"');
     expect(html).toContain("room-clock");
     expect(html).toContain("formatRelativeTime");
     expect(html).toContain("staleTasks");
+    expect(html).toContain("stale-messages");
+    expect(html).toContain("stale-decisions");
+    expect(html).toContain("followUpHints");
     expect(html).toContain("stale-threshold-form");
     expect(html).toContain("progress-bar");
     expect(html).toContain("renderProgress");
-    expect(html).toContain("Protocol Warnings");
+    expect(html).toContain("section-roadmap");
+    expect(html).toContain("feed-section");
+    expect(html).toContain("header-progress");
+    expect(html).toContain("humanizeProgressNote");
+    expect(html).toContain("workspace-banner");
+    expect(html).toContain("renderWorkspaceBanner");
+    expect(html).toContain("Registered workspaces");
+    expect(html).toContain("protocol-warnings");
     expect(html).toContain("protocol-warnings");
     expect(html).toContain("protocolWarnings");
-    expect(html).toContain("Filter by agent");
     expect(html).toContain("filter-agent");
     expect(html).toContain("filterSince");
     expect(html).toContain("filterUntil");
+    expect(html).toContain("current-user");
     expect(html).toContain("Today");
-    expect(html).toContain("This week");
-    expect(html).toContain("Needs review");
-    expect(html).toContain("Clear filters");
+    expect(html).toContain('data-filter-preset="week"');
+    expect(html).toContain('data-filter-preset="mine"');
+    expect(html).toContain("Mine");
+    expect(html).toContain('data-filter-preset="review"');
+    expect(html).toContain('data-filter-preset="clear"');
     expect(html).toContain("applyFilterPreset");
-    expect(html).toContain("Room Status");
+    expect(html).toContain("section-overview");
     expect(html).toContain("room-status");
     expect(html).toContain("renderStatus");
+    expect(html).toContain("side-toggle");
+    expect(html).toContain("panel-section");
+    expect(html).toContain("setPanelOpen");
+    expect(html).toContain("stale-quiet");
+    expect(html).toContain("No messages yet");
+  });
+
+  it("surfaces follow-up hints and stale message warnings in snapshots", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const message = await store.postMessage({
+      from: "user",
+      to: "all",
+      topic: "Schedule",
+      body: "Ship later today and review tomorrow.",
+      project: "agent-room-mcp"
+    });
+    const messages = await store.listMessages();
+    messages[0].time = "2000-01-01T00:00:00.000Z";
+    await writeFile(
+      join(roomDir, "messages.jsonl"),
+      `${messages.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+      "utf8"
+    );
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+
+    expect(snapshot.messages[0]).toMatchObject({
+      id: message.id,
+      relativeTime: expect.any(String),
+      followUpHints: expect.arrayContaining([
+        expect.objectContaining({ phrase: "later today" }),
+        expect.objectContaining({ phrase: "tomorrow" })
+      ])
+    });
+    expect(snapshot.staleMessages).toMatchObject([{ kind: "message", id: message.id }]);
   });
 
   it("returns stale task warnings in project snapshots", async () => {
@@ -260,7 +376,93 @@ describe("dashboard server", () => {
     await expect(updateResponse.json()).resolves.toMatchObject({ staleTaskHours: 6 });
 
     const snapshot = await fetch(`${server.url}/api/snapshot`).then((res) => res.json());
-    expect(snapshot.config).toMatchObject({ staleTaskHours: 6 });
+    expect(snapshot.config).toMatchObject({ staleTaskHours: 6, currentUser: "user", enforceProtocol: false });
+  });
+
+  it("exposes workspace and write project in snapshots", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    await store.upsertProject({
+      id: "agent-room-mcp",
+      name: "Agent Room MCP",
+      folderPath: "D:\\projects\\agent-room-mcp"
+    });
+    await store.updateConfig({ activeProject: "agent-room-mcp" });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=all`).then((res) => res.json());
+
+    expect(snapshot).toMatchObject({
+      selectedProject: "all",
+      writeProject: "agent-room-mcp",
+      workspace: {
+        projectId: "agent-room-mcp",
+        name: "Agent Room MCP",
+        folderPath: "D:\\projects\\agent-room-mcp",
+        registered: true
+      }
+    });
+  });
+
+  it("persists current-user identity and exposes it in snapshots", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const updateResponse = await fetch(`${server.url}/api/config`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentUser: "bill" })
+    });
+
+    expect(updateResponse.status).toBe(200);
+    await expect(updateResponse.json()).resolves.toMatchObject({ currentUser: "bill" });
+
+    const snapshot = await fetch(`${server.url}/api/snapshot`).then((res) => res.json());
+    expect(snapshot.config).toMatchObject({ currentUser: "bill" });
+  });
+
+  it("filters snapshot history to the configured current user", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    await store.updateConfig({ currentUser: "bill" });
+    await store.postMessage({
+      from: "bill",
+      to: "all",
+      topic: "Mine message",
+      body: "From the configured user.",
+      project: "agent-room-mcp"
+    });
+    await store.postMessage({
+      from: "codex",
+      to: "all",
+      topic: "Agent message",
+      body: "From Codex.",
+      project: "agent-room-mcp"
+    });
+    await store.createTask({
+      title: "Bill task",
+      body: "Owned by bill.",
+      owner: "bill",
+      project: "agent-room-mcp"
+    });
+    await store.createTask({
+      title: "Codex task",
+      body: "Owned by codex.",
+      owner: "codex",
+      project: "agent-room-mcp"
+    });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp&actor=bill`).then((res) =>
+      res.json()
+    );
+
+    expect(snapshot.actor).toBe("bill");
+    expect(snapshot.messages).toMatchObject([{ topic: "Mine message" }]);
+    expect(snapshot.tasks).toMatchObject([{ title: "Bill task" }]);
   });
 
   it("searches messages, tasks, task notes, and decisions in a project snapshot", async () => {
@@ -377,6 +579,12 @@ describe("dashboard server", () => {
     const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
     servers.push(server);
 
+    const attachment = await fetch(`${server.url}/api/attachments/link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Spec", url: "https://example.com/spec" })
+    }).then((res) => res.json());
+
     await fetch(`${server.url}/api/tasks`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -384,7 +592,8 @@ describe("dashboard server", () => {
         title: "Implement sidebar",
         body: "Codex owns implementation.",
         owner: "codex",
-        project: "dashboard-v2"
+        project: "dashboard-v2",
+        attachmentIds: [attachment.id]
       })
     });
 
@@ -395,13 +604,15 @@ describe("dashboard server", () => {
         title: "Human is lead",
         decision: "User decisions override agent debate.",
         rationale: "Prevents drift.",
-        project: "dashboard-v2"
+        project: "dashboard-v2",
+        attachmentIds: [attachment.id],
+        linkAttachments: [{ name: "Decision link", url: "https://example.com/decision" }]
       })
     });
 
     const snapshot = await fetch(`${server.url}/api/snapshot?project=dashboard-v2`).then((res) => res.json());
-    expect(snapshot.tasks).toMatchObject([{ title: "Implement sidebar", owner: "codex" }]);
-    expect(snapshot.decisions).toMatchObject([{ title: "Human is lead" }]);
+    expect(snapshot.tasks).toMatchObject([{ title: "Implement sidebar", owner: "codex", attachments: [{ id: attachment.id }] }]);
+    expect(snapshot.decisions).toMatchObject([{ title: "Human is lead", attachments: [{ id: attachment.id }, { name: "Decision link" }] }]);
   });
 
   it("lets the user update task status, owner, and notes from the dashboard API", async () => {
@@ -434,8 +645,11 @@ describe("dashboard server", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         taskId: task.id,
-        body: "Branch codex/task-editing is ready.",
-        by: "codex"
+        body: "Ready for review.",
+        branch: "codex/task-editing",
+        commit: "abc123",
+        by: "codex",
+        links: [{ name: "Review note", url: "https://example.com/note" }]
       })
     });
     expect(noteResponse.status).toBe(200);
@@ -448,10 +662,28 @@ describe("dashboard server", () => {
         owner: "claude-opus",
         notes: [
           expect.objectContaining({ by: "user", body: "Needs review before merge." }),
-          expect.objectContaining({ by: "codex", body: "Branch codex/task-editing is ready." })
+          expect.objectContaining({
+            by: "codex",
+            body: "Ready for review.",
+            branch: "codex/task-editing",
+            commit: "abc123",
+            attachments: [expect.objectContaining({ name: "Review note" })]
+          })
         ]
       }
     ]);
+  });
+
+  it("serves inline task action controls in the dashboard HTML", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const html = await fetch(`${server.url}/`).then((res) => res.text());
+    expect(html).toContain("task-actions");
+    expect(html).toContain("task-update-branch");
+    expect(html).toContain("task-update-commit");
+    expect(html).toContain("function taskCard(task)");
   });
 
   it("lets the user register a project folder and returns it in snapshots", async () => {

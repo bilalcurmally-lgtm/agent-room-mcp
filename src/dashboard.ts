@@ -6,16 +6,21 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   AgentRoomStore,
+  resolveWriteProject,
   type RoomConfig,
   type RoomDecision,
   type RoomMessage,
   type RoomProject,
   type RoomStatus,
   type RoomTask,
+  type StaleItemWarning,
   type StaleTaskWarning
 } from "./store.js";
+import { formatRelativeTime, parseFollowUpHints, type FollowUpHint } from "./temporal.js";
 import { dashboardHtml } from "./dashboard-ui.js";
-import { getRoadmapProgressFromFile, type RoadmapProgress } from "./progress.js";
+import type { EnrichedRoadmapProgress } from "./room-progress.js";
+import { getRoadmapProgressForRoom } from "./room-progress.js";
+import { protocolWarningsForMessages, type ProtocolWarning } from "./protocol.js";
 import { createRoomTime, type RoomTime } from "./time.js";
 
 export interface DashboardOptions {
@@ -30,6 +35,18 @@ export interface DashboardServer {
   close(): Promise<void>;
 }
 
+export interface SnapshotMessage extends RoomMessage {
+  relativeTime: string;
+  followUpHints: FollowUpHint[];
+}
+
+export interface WorkspaceInfo {
+  projectId: string;
+  name: string;
+  folderPath?: string;
+  registered: boolean;
+}
+
 interface Snapshot {
   selectedProject: string;
   search: string;
@@ -38,13 +55,17 @@ interface Snapshot {
   until: string;
   roomTime: RoomTime;
   config: RoomConfig;
-  progress: RoadmapProgress;
+  writeProject?: string;
+  workspace?: WorkspaceInfo;
+  progress: EnrichedRoadmapProgress;
   status: RoomStatus;
   projects: string[];
   projectRecords: RoomProject[];
-  messages: RoomMessage[];
+  messages: SnapshotMessage[];
   tasks: RoomTask[];
   staleTasks: StaleTaskWarning[];
+  staleMessages: StaleItemWarning[];
+  staleDecisions: StaleItemWarning[];
   protocolWarnings: ProtocolWarning[];
   decisions: RoomDecision[];
   agents: Array<{
@@ -55,17 +76,6 @@ interface Snapshot {
     registeredAt: string;
     updatedAt: string;
   }>;
-}
-
-interface ProtocolWarning {
-  messageId: string;
-  from: string;
-  to: string;
-  topic: string;
-  time: string;
-  project?: string;
-  missing: string[];
-  message: string;
 }
 
 interface SnapshotFilters {
@@ -189,6 +199,36 @@ async function routeRequest(
     return;
   }
 
+  const attachmentMatch = url.pathname.match(/^\/api\/attachments\/([^/]+)$/);
+  if (method === "GET" && attachmentMatch) {
+    const { stored, content } = await store.readAttachmentFile(attachmentMatch[1]);
+    sendBuffer(response, 200, content, stored.mimeType);
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/attachments") {
+    const body = await readJsonBody(request);
+    const attachment = await store.uploadAttachment({
+      fileName: requireString(body.fileName, "fileName"),
+      mimeType: requireString(body.mimeType, "mimeType"),
+      contentBase64: requireString(body.contentBase64, "contentBase64"),
+      uploadedBy: optionalString(body.uploadedBy) ?? "user"
+    });
+    sendJson(response, 201, attachment);
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/attachments/link") {
+    const body = await readJsonBody(request);
+    const attachment = await store.linkAttachment({
+      name: requireString(body.name, "name"),
+      url: requireString(body.url, "url"),
+      uploadedBy: optionalString(body.uploadedBy) ?? "user"
+    });
+    sendJson(response, 201, attachment);
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/messages") {
     const body = await readJsonBody(request);
     const message = await store.postMessage({
@@ -198,7 +238,12 @@ async function routeRequest(
       body: requireString(body.body, "body"),
       project: optionalProject(body.project),
       source: optionalString(body.source) ?? "dashboard",
-      replyTo: optionalString(body.replyTo)
+      replyTo: optionalString(body.replyTo),
+      status: optionalString(body.status),
+      next: optionalString(body.next),
+      phase: optionalString(body.phase),
+      attachmentIds: optionalStringArray(body.attachmentIds),
+      links: optionalAttachmentLinks(body.links)
     });
     sendJson(response, 201, message);
     return;
@@ -229,7 +274,11 @@ async function routeRequest(
   if (method === "POST" && url.pathname === "/api/config") {
     const body = await readJsonBody(request);
     const config = await store.updateConfig({
-      staleTaskHours: optionalNumber(body.staleTaskHours)
+      staleTaskHours: optionalNumber(body.staleTaskHours),
+      currentUser: optionalString(body.currentUser),
+      enforceProtocol: optionalBoolean(body.enforceProtocol),
+      activeProject:
+        body.activeProject === null ? null : optionalString(body.activeProject)
     });
     sendJson(response, 200, config);
     return;
@@ -242,7 +291,9 @@ async function routeRequest(
       body: requireString(body.body, "body"),
       owner: typeof body.owner === "string" && body.owner.length > 0 ? body.owner : undefined,
       project: optionalProject(body.project),
-      source: "dashboard"
+      source: "dashboard",
+      attachmentIds: optionalStringArray(body.attachmentIds),
+      links: optionalAttachmentLinks(body.links)
     });
     sendJson(response, 201, task);
     return;
@@ -255,7 +306,11 @@ async function routeRequest(
       status: requireTaskStatus(body.status),
       owner: optionalString(body.owner),
       note: optionalString(body.note),
-      by: optionalString(body.by) ?? "user"
+      branch: optionalString(body.branch),
+      commit: optionalString(body.commit),
+      by: optionalString(body.by) ?? "user",
+      attachmentIds: optionalStringArray(body.attachmentIds),
+      links: optionalAttachmentLinks(body.links)
     });
     sendJson(response, 200, task);
     return;
@@ -266,7 +321,11 @@ async function routeRequest(
     const task = await store.appendTaskNote({
       taskId: requireString(body.taskId, "taskId"),
       body: requireString(body.body, "body"),
-      by: optionalString(body.by) ?? "user"
+      branch: optionalString(body.branch),
+      commit: optionalString(body.commit),
+      by: optionalString(body.by) ?? "user",
+      attachmentIds: optionalStringArray(body.attachmentIds),
+      links: optionalAttachmentLinks(body.links)
     });
     sendJson(response, 200, task);
     return;
@@ -279,7 +338,9 @@ async function routeRequest(
       decision: requireString(body.decision, "decision"),
       rationale: requireString(body.rationale, "rationale"),
       project: optionalProject(body.project),
-      source: "dashboard"
+      source: "dashboard",
+      attachmentIds: optionalStringArray(body.attachmentIds),
+      linkAttachments: optionalAttachmentLinks(body.linkAttachments)
     });
     sendJson(response, 201, decision);
     return;
@@ -302,11 +363,14 @@ async function createSnapshot(
   const projectRecords = await store.listProjectRecords();
   const config = await store.getConfig();
   const status = await store.getRoomStatus();
-  const staleTasks = await store.listStaleTasks(
+  const staleOptions =
     projectFilter && projectFilter !== "unsorted"
       ? { project: projectFilter, olderThanHours: config.staleTaskHours }
-      : { olderThanHours: config.staleTaskHours }
-  );
+      : { olderThanHours: config.staleTaskHours };
+  const staleTasks = await store.listStaleTasks(staleOptions);
+  const staleMessages = await store.listStaleMessages(staleOptions);
+  const staleDecisions = await store.listStaleDecisions(staleOptions);
+  const roomTime = createRoomTime();
   const projectMessages = filterProject(messages, selectedProject);
   const projectTasks = filterProject(tasks, selectedProject);
   const projectStaleTasks = filterProject(staleTasks, selectedProject);
@@ -319,9 +383,21 @@ async function createSnapshot(
     taskUpdatedTime,
     taskNoteTimes
   ]);
+  const projectStaleMessages = filterProject(staleMessages, selectedProject);
+  const projectStaleDecisions = filterProject(staleDecisions, selectedProject);
   const filteredStaleTasks = filterDateRange(filterActor(projectStaleTasks, filters.actor, staleTaskActorText), dateRange, [
     staleTaskUpdatedTime
   ]);
+  const filteredStaleMessages = filterDateRange(
+    filterActor(projectStaleMessages, filters.actor, staleItemActorText),
+    dateRange,
+    [staleItemUpdatedTime]
+  );
+  const filteredStaleDecisions = filterDateRange(
+    filterActor(projectStaleDecisions, filters.actor, staleItemActorText),
+    dateRange,
+    [staleItemUpdatedTime]
+  );
   const filteredProtocolWarnings = filterDateRange(
     filterActor(projectProtocolWarnings, filters.actor, protocolWarningActorText),
     dateRange,
@@ -330,6 +406,8 @@ async function createSnapshot(
   const filteredDecisions = filterDateRange(filterActor(projectDecisions, filters.actor, decisionActorText), dateRange, [
     decisionTime
   ]);
+  const writeProject = resolveWriteProject(config, selectedProject);
+  const workspace = buildWorkspaceInfo(config.activeProject, projectRecords);
 
   return {
     selectedProject,
@@ -337,15 +415,28 @@ async function createSnapshot(
     actor: filters.actor,
     since: filters.since,
     until: filters.until,
-    roomTime: createRoomTime(),
+    roomTime,
     config,
-    progress: await getRoadmapProgressFromFile(),
+    writeProject,
+    workspace,
+    progress: await getRoadmapProgressForRoom({
+      roomDir: store.roomDir,
+      projects: projectRecords,
+      tasks,
+      decisions,
+      messages,
+      agents,
+      protocolWarningCount: projectProtocolWarnings.length,
+      config
+    }),
     status,
     projects: await store.listProjects(),
     projectRecords,
-    messages: filterSearch(filteredMessages, filters.search, messageSearchText),
+    messages: enrichMessages(filterSearch(filteredMessages, filters.search, messageSearchText), roomTime),
     tasks: filterSearch(filteredTasks, filters.search, taskSearchText),
     staleTasks: filterSearch(filteredStaleTasks, filters.search, staleTaskSearchText),
+    staleMessages: filterSearch(filteredStaleMessages, filters.search, staleItemSearchText),
+    staleDecisions: filterSearch(filteredStaleDecisions, filters.search, staleItemSearchText),
     protocolWarnings: filterSearch(filteredProtocolWarnings, filters.search, protocolWarningSearchText),
     decisions: filterSearch(filteredDecisions, filters.search, decisionSearchText),
     agents: agents.map(({ id, displayName, role, lastReadMessageId, registeredAt, updatedAt }) => ({
@@ -359,40 +450,31 @@ async function createSnapshot(
   };
 }
 
-function protocolWarningsForMessages(messages: RoomMessage[]): ProtocolWarning[] {
-  return messages.flatMap((message) => {
-    if (message.from === "user") return [];
-
-    const missing = [
-      !/\[STATUS:/i.test(message.body) ? "[STATUS:]" : undefined,
-      !/\[NEXT:/i.test(message.body) ? "[NEXT:]" : undefined
-    ].filter((field): field is string => Boolean(field));
-
-    if (missing.length === 0) return [];
-
-    return [
-      {
-        messageId: message.id,
-        from: message.from,
-        to: message.to,
-        topic: message.topic,
-        time: message.time,
-        project: message.project,
-        missing,
-        message: `Missing ${formatMissingFields(missing)}. Ask ${message.from} to repost with protocol fields.`
-      }
-    ];
-  });
-}
-
-function formatMissingFields(fields: string[]): string {
-  if (fields.length <= 1) return fields.join("");
-  return `${fields.slice(0, -1).join(", ")} and ${fields[fields.length - 1]}`;
-}
-
 interface DateRange {
   since?: Date;
   until?: Date;
+}
+
+function buildWorkspaceInfo(
+  activeProject: string | undefined,
+  projectRecords: RoomProject[]
+): WorkspaceInfo | undefined {
+  if (!activeProject) return undefined;
+  const record = projectRecords.find((project) => project.id === activeProject);
+  if (record) {
+    return {
+      projectId: record.id,
+      name: record.name,
+      folderPath: record.folderPath,
+      registered: true
+    };
+  }
+
+  return {
+    projectId: activeProject,
+    name: activeProject,
+    registered: false
+  };
 }
 
 function createDateRange(since: string, until: string): DateRange {
@@ -448,7 +530,18 @@ function filterDateRange<T>(items: T[], range: DateRange, accessors: Array<(item
 }
 
 function messageSearchText(message: RoomMessage): string {
-  return [message.id, message.from, message.to, message.topic, message.body, message.project, message.source]
+  return [
+    message.id,
+    message.from,
+    message.to,
+    message.topic,
+    message.body,
+    message.project,
+    message.source,
+    message.status,
+    message.next,
+    message.phase
+  ]
     .filter(Boolean)
     .join("\n");
 }
@@ -461,6 +554,26 @@ function messageTime(message: RoomMessage): string[] {
   return [message.time];
 }
 
+function enrichMessages(messages: RoomMessage[], roomTime: RoomTime): SnapshotMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    relativeTime: formatRelativeTime(message.time),
+    followUpHints: parseFollowUpHints([message.body, message.next].filter(Boolean).join("\n"), roomTime)
+  }));
+}
+
+function staleItemSearchText(warning: StaleItemWarning): string {
+  return [warning.id, warning.title, warning.kind, warning.project, warning.message].filter(Boolean).join("\n");
+}
+
+function staleItemActorText(_warning: StaleItemWarning): string {
+  return "";
+}
+
+function staleItemUpdatedTime(warning: StaleItemWarning): string[] {
+  return [warning.updatedAt];
+}
+
 function taskSearchText(task: RoomTask): string {
   return [
     task.id,
@@ -470,7 +583,7 @@ function taskSearchText(task: RoomTask): string {
     task.owner,
     task.project,
     task.source,
-    ...task.notes.map((note) => [note.by, note.body].join(" "))
+    ...task.notes.map((note) => [note.by, note.body, note.branch, note.commit].filter(Boolean).join(" "))
   ]
     .filter(Boolean)
     .join("\n");
@@ -510,7 +623,8 @@ function protocolWarningSearchText(warning: ProtocolWarning): string {
     warning.topic,
     warning.project,
     warning.message,
-    ...warning.missing
+    ...warning.missing,
+    ...warning.invalid
   ]
     .filter(Boolean)
     .join("\n");
@@ -586,6 +700,31 @@ function optionalNumber(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function optionalStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.filter((item): item is string => typeof item === "string" && item.length > 0);
+  return items.length ? items : undefined;
+}
+
+function optionalAttachmentLinks(
+  value: unknown
+): Array<{ name: string; url: string }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const links = value.flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const row = item as Record<string, unknown>;
+    const name = typeof row.name === "string" ? row.name : "";
+    const linkUrl = typeof row.url === "string" ? row.url : "";
+    if (!linkUrl) return [];
+    return [{ name: name || linkUrl, url: linkUrl }];
+  });
+  return links.length ? links : undefined;
+}
+
 function requireTaskStatus(value: unknown): "open" | "claimed" | "blocked" | "done" {
   if (value === "open" || value === "claimed" || value === "blocked" || value === "done") return value;
   throw new HttpError(400, "status must be open, claimed, blocked, or done");
@@ -598,6 +737,14 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
 function sendText(response: ServerResponse, status: number, text: string, contentType: string): void {
   response.writeHead(status, { "content-type": contentType });
   response.end(text);
+}
+
+function sendBuffer(response: ServerResponse, status: number, body: Buffer, contentType: string): void {
+  response.writeHead(status, {
+    "content-type": contentType,
+    "content-length": String(body.length)
+  });
+  response.end(body);
 }
 
 class HttpError extends Error {

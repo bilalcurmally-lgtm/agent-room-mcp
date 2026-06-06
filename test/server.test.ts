@@ -2,7 +2,9 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { assertProtocolCompliant } from "../src/protocol.js";
 import { createServer, isDirectRun, resolveRoomDir } from "../src/server.js";
+import { AgentRoomStore } from "../src/store.js";
 
 describe("resolveRoomDir", () => {
   it("uses --room before environment fallback", () => {
@@ -38,6 +40,31 @@ describe("isDirectRun", () => {
 });
 
 describe("createServer", () => {
+  it("rejects non-compliant agent messages when protocol enforcement is enabled", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-server-"));
+    await AgentRoomStore.open(roomDir);
+
+    expect(() =>
+      assertProtocolCompliant(
+        { from: "codex-desktop", body: "Missing protocol.", to: "all", topic: "Bad" },
+        true
+      )
+    ).toThrow(/Protocol enforcement/);
+
+    expect(() =>
+      assertProtocolCompliant(
+        {
+          from: "codex-desktop",
+          body: "Ready.",
+          status: "implementing",
+          next: "Claude review",
+          phase: "C1"
+        },
+        true
+      )
+    ).not.toThrow();
+  });
+
   it("registers coordination tools that let agents check in without manual prompting", async () => {
     const server = await createServer(await mkdtemp(join(tmpdir(), "agent-room-server-")));
 
@@ -50,7 +77,10 @@ describe("createServer", () => {
         "register_project",
         "delete_project",
         "list_projects",
-        "append_task_note"
+        "append_task_note",
+        "upload_attachment",
+        "link_attachment",
+        "list_attachments"
       ])
     );
   });

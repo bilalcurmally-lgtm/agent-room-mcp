@@ -42,32 +42,55 @@ export function resolvePingOptions(args, env = process.env) {
   };
 }
 
-async function main() {
-  const options = resolvePingOptions(process.argv.slice(2));
-  const statePath = join(options.roomDir, `.lastseen-${options.agent}`);
+export function lastSeenPath(roomDir, agent) {
+  return join(roomDir, `.lastseen-${agent}`);
+}
+
+export async function runRoomPing(options) {
+  const statePath = lastSeenPath(options.roomDir, options.agent);
 
   try {
     const [snapshot, lastSeen] = await Promise.all([
       fetchSnapshot(options.snapshotUrl),
       readLastSeen(statePath)
     ]);
-    const allUnread = snapshot.messages
-      .filter((message) => message.id > lastSeen)
-      .filter((message) => message.from !== options.agent)
-      .filter((message) => message.to === "all" || message.to === options.agent)
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const allUnread = selectUnreadMessages(snapshot.messages ?? [], {
+      agent: options.agent,
+      lastSeen,
+      limit: Number.MAX_SAFE_INTEGER
+    });
     const selected = allUnread.slice(0, options.limit);
     const output = formatRoomPing(selected, { total: allUnread.length });
-
-    if (output) console.log(output);
     const highest = selected.at(-1)?.id;
     if (highest) await writeLastSeen(statePath, highest);
-  } catch {
-    // Hooks must never block a prompt if the dashboard is closed or the room is unavailable.
+
+    return {
+      output,
+      selected,
+      totalUnread: allUnread.length,
+      highestId: highest,
+      lastSeenBefore: lastSeen
+    };
+  } catch (error) {
+    return {
+      output: "",
+      selected: [],
+      totalUnread: 0,
+      highestId: undefined,
+      lastSeenBefore: "",
+      silent: true,
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
 
-async function fetchSnapshot(url) {
+async function main() {
+  const options = resolvePingOptions(process.argv.slice(2));
+  const result = await runRoomPing(options);
+  if (result.output) console.log(result.output);
+}
+
+export async function fetchSnapshot(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1500);
   try {
@@ -79,7 +102,7 @@ async function fetchSnapshot(url) {
   }
 }
 
-async function readLastSeen(path) {
+export async function readLastSeen(path) {
   try {
     return (await readFile(path, "utf8")).trim();
   } catch {
@@ -87,7 +110,7 @@ async function readLastSeen(path) {
   }
 }
 
-async function writeLastSeen(path, id) {
+export async function writeLastSeen(path, id) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${id}\n`, "utf8");
 }

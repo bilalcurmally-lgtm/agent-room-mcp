@@ -14,11 +14,14 @@
     "dev": "tsx src/server.ts",
     "dashboard": "tsx src/dashboard.ts",
     "start-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-agent-room.ps1",
+    "start-suite": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-agent-room-suite.ps1",
     "install-shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-shortcut.ps1",
     "install-suite": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-suite.ps1",
     "watch-room": "node scripts/room-watch.mjs",
     "notify-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/notify-agent-room.ps1",
-    "start-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-room-watch.ps1"
+    "start-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-room-watch.ps1",
+    "verify-clients": "npm run build && node dist/verify-mcp-clients.js",
+    "dogfood-ping-watch": "npm run build && node scripts/dogfood-ping-watch.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

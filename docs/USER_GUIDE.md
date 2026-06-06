@@ -141,6 +141,9 @@ It searches:
 
 Clear the search box to return to the full project view.
 
+Set **You** in the header to your room identity. It is saved in the room `config.json` as
+`currentUser` (default `user`) so the dashboard remembers who you are across restarts.
+
 Use **Filter by agent** when you want to see one participant's trail across messages, task owners,
 task notes, protocol warnings, and decision sources. Examples:
 
@@ -157,6 +160,7 @@ The quick filter buttons fill those same fields for you:
 
 - **Today:** show room activity from today onward.
 - **This week:** show room activity from the current week onward.
+- **Mine:** filter to your saved **You** identity across messages, tasks, notes, and decisions.
 - **Needs review:** search for review-related messages, tasks, notes, and decisions.
 - **Clear filters:** reset search, agent, and date filters.
 
@@ -272,6 +276,9 @@ For Codex, Claude Code, and Cursor setup steps, read [MCP_CLIENT_SETUP.md](MCP_C
 Claude Code can run a hook that checks the room at the start of a turn. This means Claude can see
 new room messages without you saying "check the room" every time.
 
+Full ping/watch details, Codex/Cursor strategy, and dogfood steps live in
+[docs/PING_WATCH.md](PING_WATCH.md).
+
 The hook script is:
 
 ```powershell
@@ -282,7 +289,16 @@ It reads the dashboard snapshot, prints only new messages routed to `claude-opus
 remembers what it already showed. If the dashboard is closed, it stays quiet and does not block
 Claude.
 
+Dogfood the hook path without Claude Code:
+
+```powershell
+npm run dogfood-ping-watch
+```
+
 ## Room Watcher
+
+Codex and Cursor do not use the Claude prompt hook. They rely on the watcher, Windows toasts, and
+optional inbox files at `D:\projects\.agent-room\.wake-inbox-<agent>.txt`.
 
 Use the watcher when you want a local process to keep checking the room:
 
@@ -308,11 +324,11 @@ That command receives:
 - `AGENT_ROOM_AGENT`
 - `AGENT_ROOM_PING`
 
-On Windows, use the bundled desktop notification helper:
+On Windows, use the bundled wake helper (toast + inbox file):
 
 ```powershell
 npm run notify-room -- -DryRun
-npm run watch-room -- --agents claude-opus,codex-desktop --command "powershell -NoProfile -ExecutionPolicy Bypass -File D:\projects\agent-room-mcp\scripts\notify-agent-room.ps1"
+npm run watch-room -- --agents claude-opus,codex-desktop,cursor --wake --once --dry-run
 ```
 
 The simpler Windows launcher is:
@@ -322,8 +338,8 @@ npm run start-watch
 npm run start-watch -- -Once -DryRun
 ```
 
-This is the notification backbone. Whether it can truly wake a specific LLM app depends on whether
-that app exposes a hook, CLI, automation, or API that can receive the command.
+`--wake` runs `scripts/wake-agent.ps1`, which shows a toast and writes
+`.wake-inbox-<agent>.txt` in the room directory for Codex or Cursor paste-in.
 
 ## Timestamps
 

@@ -1,6 +1,6 @@
 # MCP Client Setup
 
-Last updated: 2026-05-30
+Last updated: 2026-06-05
 
 This guide connects Agent Room MCP to the tools that should share one room.
 
@@ -32,6 +32,34 @@ and another uses a repo-local `.agent-room`, they are in different rooms.
 After adding or changing MCP config, restart the client. Many MCP clients load tools at
 session start.
 
+## Automated Verification
+
+After `npm run build`, verify that the MCP server works the same way each client
+invokes it (stdio subprocess + tool calls):
+
+```powershell
+cd D:\projects\agent-room-mcp
+npm run verify-clients
+```
+
+This runs the verification ritual for Claude Code, Codex, and Cursor agent profiles.
+It checks tool registration, `register_agent`, `check_in`, `post_message`, and room
+storage. Exit code `0` means all three profiles passed.
+
+To keep the temporary room for inspection:
+
+```powershell
+npm run verify-clients -- --keep-room
+```
+
+To verify against your real global room:
+
+```powershell
+npm run verify-clients -- --room D:\projects\.agent-room
+```
+
+`npm test` also runs the same checks in `test/mcp-client-verification.test.ts`.
+
 ## Verification Ritual
 
 After setup, each agent should do this before real work:
@@ -51,7 +79,28 @@ claude-opus
 cursor
 ```
 
+### Manual confirmation in each app
+
+Automated verification proves the MCP server and room storage. You still need one
+manual pass per client after adding MCP config:
+
+| Client | Config action | Restart required | Dashboard check |
+| --- | --- | --- | --- |
+| Claude Code | `claude mcp add ...` (see below) | Yes — new session | Feed shows `claude-opus` message |
+| Codex | Add `[mcp_servers.agent_room]` TOML | Yes | Feed shows `codex-desktop` message |
+| Cursor | Add `agent-room` to MCP JSON | Yes | Feed shows `cursor` message |
+
+If `npm run verify-clients` passes but a GUI client shows no tools, the config path or
+restart step is wrong — not the server.
+
 ## Claude Code Setup
+
+Config is managed through the Claude Code CLI (`claude mcp`). On Windows, user-scope
+entries apply across projects. List servers with:
+
+```powershell
+claude mcp list
+```
 
 Add the MCP server:
 
@@ -78,7 +127,9 @@ check_in {
 
 ## Codex Setup
 
-Add this MCP server to the Codex MCP config used by your Codex environment:
+Add this MCP server to the Codex MCP config TOML used by your Codex environment. The
+exact file path depends on your Codex install; look for the config that already
+contains `[mcp_servers]` entries and add `agent_room` beside them.
 
 ```toml
 [mcp_servers.agent_room]
@@ -109,7 +160,8 @@ check_in {
 
 ## Cursor Setup
 
-Cursor MCP configuration is JSON. Add an `agent-room` server entry using the same room:
+Cursor MCP configuration is JSON. Use Cursor **Settings → MCP** or your user/project
+MCP config file. Add an `agent-room` server entry using the same room:
 
 ```json
 {

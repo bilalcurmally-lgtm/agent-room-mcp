@@ -10,31 +10,39 @@
     },
     {
       "title": "Search And History",
-      "status": "partial"
+      "status": "done"
     },
     {
       "title": "App-Specific Setup Guides",
-      "status": "partial"
+      "status": "done"
     },
     {
       "title": "Ping/Watch Reliability",
-      "status": "partial"
+      "status": "done"
     },
     {
       "title": "Protocol Enforcement",
-      "status": "partial"
+      "status": "done"
     },
     {
       "title": "Easy Launcher",
-      "status": "partial"
+      "status": "done"
     },
     {
       "title": "Temporal Awareness",
-      "status": "partial"
+      "status": "done"
     },
     {
       "title": "Roadmap Progress Honesty",
-      "status": "partial"
+      "status": "done"
+    },
+    {
+      "title": "Active Workspace Project",
+      "status": "done"
+    },
+    {
+      "title": "Room Attachments",
+      "status": "done"
     }
   ]
 }

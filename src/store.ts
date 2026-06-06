@@ -1,6 +1,22 @@
 import { appendFile, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  decodeAttachmentContent,
+  inlineLinkRef,
+  isAllowedMimeType,
+  sanitizeAttachmentFileName,
+  toAttachmentRef,
+  validateLinkUrl,
+  type AttachmentRef,
+  type LinkAttachmentInput,
+  type StoredAttachment,
+  type UploadAttachmentInput
+} from "./attachments.js";
+import { assessProtocolCompliance, enrichMessageBody } from "./protocol.js";
+import { buildStaleItemWarnings, type StaleItemWarning } from "./temporal.js";
 import { createRoomTime, type RoomTime } from "./time.js";
+
+export type { AttachmentRef, StoredAttachment, UploadAttachmentInput, LinkAttachmentInput } from "./attachments.js";
 
 export const MAX_TEXT_LENGTH = 100_000;
 export const STALE_TASK_AFTER_HOURS = 24;
@@ -16,11 +32,17 @@ export interface PostMessageInput {
   project?: string;
   source?: string;
   replyTo?: string;
+  status?: string;
+  next?: string;
+  phase?: string;
+  attachmentIds?: string[];
+  links?: Array<{ name: string; url: string }>;
 }
 
-export interface RoomMessage extends PostMessageInput {
+export interface RoomMessage extends Omit<PostMessageInput, "attachmentIds" | "links"> {
   id: string;
   time: string;
+  attachments?: AttachmentRef[];
 }
 
 export interface ReadMessagesInput {
@@ -36,6 +58,8 @@ export interface CreateTaskInput {
   owner?: AgentId;
   project?: string;
   source?: string;
+  attachmentIds?: string[];
+  links?: Array<{ name: string; url: string }>;
 }
 
 export interface RoomTask {
@@ -49,12 +73,16 @@ export interface RoomTask {
   createdAt: string;
   updatedAt: string;
   notes: TaskNote[];
+  attachments?: AttachmentRef[];
 }
 
 export interface TaskNote {
   at: string;
   by: AgentId | "system";
   body: string;
+  branch?: string;
+  commit?: string;
+  attachments?: AttachmentRef[];
 }
 
 export interface ClaimTaskInput {
@@ -114,9 +142,13 @@ export interface AgentCheckIn {
   assignedTasks: RoomTask[];
   openTasks: RoomTask[];
   staleTasks: StaleTaskWarning[];
+  staleMessages: StaleItemWarning[];
+  staleDecisions: StaleItemWarning[];
   recentDecisions: RoomDecision[];
   status: RoomStatus;
 }
+
+export type { StaleItemWarning };
 
 export interface ListTasksInput {
   status?: TaskStatus;
@@ -146,13 +178,21 @@ export interface UpdateTaskInput {
   status: TaskStatus;
   owner?: AgentId;
   note?: string;
+  branch?: string;
+  commit?: string;
   by?: AgentId;
+  attachmentIds?: string[];
+  links?: Array<{ name: string; url: string }>;
 }
 
 export interface AppendTaskNoteInput {
   taskId: string;
   body: string;
+  branch?: string;
+  commit?: string;
   by?: AgentId;
+  attachmentIds?: string[];
+  links?: Array<{ name: string; url: string }>;
 }
 
 export interface RecordDecisionInput {
@@ -162,11 +202,15 @@ export interface RecordDecisionInput {
   project?: string;
   source?: string;
   links?: string[];
+  attachmentIds?: string[];
+  linkAttachments?: Array<{ name: string; url: string }>;
 }
 
-export interface RoomDecision extends RecordDecisionInput {
+export interface RoomDecision
+  extends Omit<RecordDecisionInput, "attachmentIds" | "linkAttachments"> {
   id: string;
   time: string;
+  attachments?: AttachmentRef[];
 }
 
 export interface RoomStatus {
@@ -178,12 +222,29 @@ export interface RoomStatus {
   unread: Record<AgentId, number>;
 }
 
+export const DEFAULT_CURRENT_USER = "user";
+
 export interface RoomConfig {
   staleTaskHours: number;
+  currentUser: string;
+  enforceProtocol: boolean;
+  activeProject?: string;
 }
 
 export interface UpdateConfigInput {
   staleTaskHours?: number;
+  currentUser?: string;
+  enforceProtocol?: boolean;
+  activeProject?: string | null;
+}
+
+export function resolveWriteProject(
+  config: RoomConfig,
+  viewProject: string
+): string | undefined {
+  if (config.activeProject) return config.activeProject;
+  if (viewProject === "all" || viewProject === "unsorted") return undefined;
+  return viewProject;
 }
 
 interface RoomState {
@@ -210,18 +271,122 @@ export class AgentRoomStore {
     validateText("body", input.body);
     validateText("project", input.project);
     validateText("source", input.source);
+    validateText("status", input.status);
+    validateText("next", input.next);
+    validateText("phase", input.phase);
+
+    const body = enrichMessageBody(input.body, {
+      status: input.status,
+      next: input.next,
+      phase: input.phase
+    });
+    const compliance = assessProtocolCompliance({
+      from: input.from,
+      body,
+      status: input.status,
+      next: input.next,
+      phase: input.phase
+    });
 
     return this.withExclusiveWrite(async () => {
       const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
+      const attachments = await this.resolveAttachmentRefs(input.attachmentIds, input.links);
       const message: RoomMessage = {
-        ...input,
+        from: input.from,
+        to: input.to,
+        topic: input.topic,
+        body,
+        project: input.project,
+        source: input.source,
+        replyTo: input.replyTo,
+        status: compliance.status,
+        next: compliance.next,
+        phase: compliance.phase,
         id: nextId(messages.length + 1),
-        time: now()
+        time: now(),
+        ...(attachments?.length ? { attachments } : {})
       };
 
       await appendFile(this.path("messages.jsonl"), `${JSON.stringify(message)}\n`, "utf8");
       return message;
     });
+  }
+
+  async uploadAttachment(input: UploadAttachmentInput): Promise<AttachmentRef> {
+    validateText("fileName", input.fileName);
+    validateText("mimeType", input.mimeType);
+    validateText("uploadedBy", input.uploadedBy);
+    const mimeType = input.mimeType.trim().toLowerCase();
+    if (!isAllowedMimeType(mimeType)) {
+      throw new Error(`mimeType not allowed: ${input.mimeType}`);
+    }
+    const safeName = sanitizeAttachmentFileName(input.fileName);
+    const content = decodeAttachmentContent(input.contentBase64);
+
+    return this.withExclusiveWrite(async () => {
+      const records = await this.readAttachments();
+      const id = nextAttachmentId(records.length + 1);
+      const fileName = `${id}-${safeName}`;
+      await mkdir(this.attachmentsDir(), { recursive: true });
+      await writeFile(join(this.attachmentsDir(), fileName), content);
+      const stored: StoredAttachment = {
+        id,
+        name: safeName,
+        mimeType,
+        size: content.length,
+        fileName,
+        uploadedBy: input.uploadedBy,
+        uploadedAt: now(),
+        kind: "file"
+      };
+      records.push(stored);
+      await this.writeAttachments(records);
+      return toAttachmentRef(stored);
+    });
+  }
+
+  async linkAttachment(input: LinkAttachmentInput): Promise<AttachmentRef> {
+    validateText("name", input.name);
+    validateText("uploadedBy", input.uploadedBy);
+    const url = validateLinkUrl(input.url);
+    const name = input.name.trim() || url;
+
+    return this.withExclusiveWrite(async () => {
+      const records = await this.readAttachments();
+      const id = nextAttachmentId(records.length + 1);
+      const stored: StoredAttachment = {
+        id,
+        name,
+        mimeType: "text/uri-list",
+        size: 0,
+        uploadedBy: input.uploadedBy,
+        uploadedAt: now(),
+        kind: "link",
+        url
+      };
+      records.push(stored);
+      await this.writeAttachments(records);
+      return toAttachmentRef(stored);
+    });
+  }
+
+  async getAttachment(id: string): Promise<StoredAttachment | undefined> {
+    const records = await this.readAttachments();
+    return records.find((record) => record.id === id);
+  }
+
+  async readAttachmentFile(id: string): Promise<{ stored: StoredAttachment; content: Buffer }> {
+    const stored = await this.getAttachment(id);
+    if (!stored || stored.kind !== "file" || !stored.fileName) {
+      throw new Error(`Attachment not found: ${id}`);
+    }
+    const content = await readFile(join(this.attachmentsDir(), stored.fileName));
+    return { stored, content };
+  }
+
+  async listAttachments(): Promise<AttachmentRef[]> {
+    const records = await this.readAttachments();
+    return records.map(toAttachmentRef);
   }
 
   async readMessages(input: ReadMessagesInput): Promise<RoomMessage[]> {
@@ -300,6 +465,14 @@ export class AgentRoomStore {
     const openTasks = await this.listTasks({ status: "open", project: input.project });
     const config = await this.getConfig();
     const staleTasks = await this.listStaleTasks({ project: input.project, olderThanHours: config.staleTaskHours });
+    const staleMessages = await this.listStaleMessages({
+      project: input.project,
+      olderThanHours: config.staleTaskHours
+    });
+    const staleDecisions = await this.listStaleDecisions({
+      project: input.project,
+      olderThanHours: config.staleTaskHours
+    });
     const decisions = await this.readDecisions();
     const projectRecord = input.project
       ? (await this.readProjects()).find((project) => project.id === input.project)
@@ -313,6 +486,8 @@ export class AgentRoomStore {
       assignedTasks,
       openTasks,
       staleTasks,
+      staleMessages,
+      staleDecisions,
       recentDecisions: decisions.filter((decision) => matchesProject(decision, input.project)),
       status: await this.getRoomStatus()
     };
@@ -327,14 +502,20 @@ export class AgentRoomStore {
 
     return this.withExclusiveWrite(async () => {
       const tasks = await this.readTasks();
+      const attachments = await this.resolveAttachmentRefs(input.attachmentIds, input.links);
       const time = now();
       const task: RoomTask = {
-        ...input,
+        title: input.title,
+        body: input.body,
+        owner: input.owner,
+        project: input.project,
+        source: input.source,
         id: `task-${nextId(tasks.length + 1)}`,
         status: input.owner ? "claimed" : "open",
         createdAt: time,
         updatedAt: time,
-        notes: []
+        notes: [],
+        ...(attachments?.length ? { attachments } : {})
       };
 
       tasks.push(task);
@@ -367,6 +548,30 @@ export class AgentRoomStore {
     });
   }
 
+  async listStaleMessages(input: ListStaleTasksInput = {}): Promise<StaleItemWarning[]> {
+    const messages = await this.listMessages();
+    return buildStaleItemWarnings(
+      messages,
+      (message) => message.time,
+      (message) => message.topic,
+      "message",
+      input.olderThanHours ?? STALE_TASK_AFTER_HOURS,
+      { project: input.project, now: input.now }
+    );
+  }
+
+  async listStaleDecisions(input: ListStaleTasksInput = {}): Promise<StaleItemWarning[]> {
+    const decisions = await this.readDecisions();
+    return buildStaleItemWarnings(
+      decisions,
+      (decision) => decision.time,
+      (decision) => decision.title,
+      "decision",
+      input.olderThanHours ?? STALE_TASK_AFTER_HOURS,
+      { project: input.project, now: input.now }
+    );
+  }
+
   async listStaleTasks(input: ListStaleTasksInput = {}): Promise<StaleTaskWarning[]> {
     const nowTime = (input.now ?? new Date()).getTime();
     const threshold = input.olderThanHours ?? STALE_TASK_AFTER_HOURS;
@@ -397,18 +602,44 @@ export class AgentRoomStore {
 
   async getConfig(): Promise<RoomConfig> {
     const config = await this.readConfig();
+    const currentUser =
+      typeof config.currentUser === "string" && config.currentUser.trim()
+        ? config.currentUser.trim()
+        : DEFAULT_CURRENT_USER;
+    const activeProject =
+      typeof config.activeProject === "string" && config.activeProject.trim()
+        ? config.activeProject.trim()
+        : undefined;
+
     return {
-      staleTaskHours: config.staleTaskHours ?? STALE_TASK_AFTER_HOURS
+      staleTaskHours: config.staleTaskHours ?? STALE_TASK_AFTER_HOURS,
+      currentUser,
+      enforceProtocol: config.enforceProtocol === true,
+      activeProject
     };
   }
 
   async updateConfig(input: UpdateConfigInput): Promise<RoomConfig> {
     const current = await this.getConfig();
-    const next: RoomConfig = {
-      ...current,
-      ...input
-    };
+    const next: RoomConfig = { ...current };
+    if (input.staleTaskHours !== undefined) next.staleTaskHours = input.staleTaskHours;
+    if (input.currentUser !== undefined) {
+      validateText("currentUser", input.currentUser);
+      const trimmed = input.currentUser.trim();
+      next.currentUser = trimmed || DEFAULT_CURRENT_USER;
+    }
+    if (input.enforceProtocol !== undefined) next.enforceProtocol = input.enforceProtocol;
+    if (input.activeProject !== undefined) {
+      if (input.activeProject === null || input.activeProject.trim() === "") {
+        delete next.activeProject;
+      } else {
+        validateText("activeProject", input.activeProject);
+        next.activeProject = input.activeProject.trim();
+      }
+    }
     validatePositiveInteger("staleTaskHours", next.staleTaskHours);
+    validateText("currentUser", next.currentUser);
+    validateText("activeProject", next.activeProject);
 
     return this.withExclusiveWrite(async () => {
       await this.writeConfig(next);
@@ -496,6 +727,8 @@ export class AgentRoomStore {
   async updateTask(input: UpdateTaskInput): Promise<RoomTask> {
     validateText("owner", input.owner);
     validateText("note", input.note);
+    validateText("branch", input.branch);
+    validateText("commit", input.commit);
     validateText("by", input.by);
 
     return this.withExclusiveWrite(async () => {
@@ -505,11 +738,17 @@ export class AgentRoomStore {
       if (input.owner !== undefined) task.owner = input.owner;
       task.updatedAt = now();
       if (input.note) {
-        task.notes.push({
-          at: task.updatedAt,
-          by: input.by ?? "system",
-          body: input.note
-        });
+        const attachments = await this.resolveAttachmentRefs(input.attachmentIds, input.links);
+        task.notes.push(
+          buildTaskNote({
+            at: task.updatedAt,
+            by: input.by ?? "system",
+            body: input.note,
+            branch: input.branch,
+            commit: input.commit,
+            attachments
+          })
+        );
       }
       await this.writeTasks(tasks);
       return task;
@@ -518,17 +757,25 @@ export class AgentRoomStore {
 
   async appendTaskNote(input: AppendTaskNoteInput): Promise<RoomTask> {
     validateText("body", input.body);
+    validateText("branch", input.branch);
+    validateText("commit", input.commit);
     validateText("by", input.by);
 
     return this.withExclusiveWrite(async () => {
       const tasks = await this.readTasks();
       const task = findTask(tasks, input.taskId);
+      const attachments = await this.resolveAttachmentRefs(input.attachmentIds, input.links);
       task.updatedAt = now();
-      task.notes.push({
-        at: task.updatedAt,
-        by: input.by ?? "system",
-        body: input.body
-      });
+      task.notes.push(
+        buildTaskNote({
+          at: task.updatedAt,
+          by: input.by ?? "system",
+          body: input.body,
+          branch: input.branch,
+          commit: input.commit,
+          attachments
+        })
+      );
       await this.writeTasks(tasks);
       return task;
     });
@@ -544,10 +791,27 @@ export class AgentRoomStore {
 
     return this.withExclusiveWrite(async () => {
       const decisions = await this.readDecisions();
+      const linkRows = [
+        ...(input.linkAttachments ?? []),
+        ...(input.links?.flatMap((url) => {
+          try {
+            return [{ name: url, url: validateLinkUrl(url) }];
+          } catch {
+            return [];
+          }
+        }) ?? [])
+      ];
+      const attachments = await this.resolveAttachmentRefs(input.attachmentIds, linkRows);
       const decision: RoomDecision = {
-        ...input,
+        title: input.title,
+        decision: input.decision,
+        rationale: input.rationale,
+        project: input.project,
+        source: input.source,
+        links: input.links,
         id: `decision-${nextId(decisions.length + 1)}`,
-        time: now()
+        time: now(),
+        ...(attachments?.length ? { attachments } : {})
       };
 
       decisions.push(decision);
@@ -583,8 +847,47 @@ export class AgentRoomStore {
     };
   }
 
+  private attachmentsDir(): string {
+    return join(this.roomDir, "attachments");
+  }
+
+  private async readAttachments(): Promise<StoredAttachment[]> {
+    return this.readJson<StoredAttachment[]>("attachments.json", []);
+  }
+
+  private async writeAttachments(records: StoredAttachment[]): Promise<void> {
+    await this.writeJsonAtomic("attachments.json", records);
+  }
+
+  private async resolveAttachmentRefs(
+    attachmentIds?: string[],
+    links?: Array<{ name: string; url: string }>
+  ): Promise<AttachmentRef[] | undefined> {
+    const ids = attachmentIds?.map((id) => id.trim()).filter(Boolean) ?? [];
+    const linkRows = links?.filter((link) => link.url.trim()) ?? [];
+    if (!ids.length && !linkRows.length) return undefined;
+
+    const records = await this.readAttachments();
+    const byId = new Map(records.map((record) => [record.id, record]));
+    const resolved: AttachmentRef[] = [];
+
+    for (const id of ids) {
+      const stored = byId.get(id);
+      if (!stored) throw new Error(`Attachment not found: ${id}`);
+      resolved.push(toAttachmentRef(stored));
+    }
+
+    for (const link of linkRows) {
+      validateText("attachment name", link.name);
+      resolved.push(inlineLinkRef(link.name, link.url));
+    }
+
+    return resolved;
+  }
+
   private async ensureRoom(): Promise<void> {
     await mkdir(this.roomDir, { recursive: true });
+    await mkdir(this.attachmentsDir(), { recursive: true });
     await ensureFile(this.path("messages.jsonl"), "");
     await ensureFile(this.path("tasks.json"), "[]\n");
     await ensureFile(this.path("decisions.json"), "[]\n");
@@ -592,6 +895,7 @@ export class AgentRoomStore {
     await ensureFile(this.path("agents.json"), "[]\n");
     await ensureFile(this.path("projects.json"), "[]\n");
     await ensureFile(this.path("config.json"), "{}\n");
+    await ensureFile(this.path("attachments.json"), "[]\n");
   }
 
   private async readState(): Promise<RoomState> {
@@ -712,6 +1016,29 @@ async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): P
   }
 }
 
+function buildTaskNote(input: {
+  at: string;
+  by: AgentId | "system";
+  body: string;
+  branch?: string;
+  commit?: string;
+  attachments?: AttachmentRef[];
+}): TaskNote {
+  const note: TaskNote = {
+    at: input.at,
+    by: input.by,
+    body: input.body
+  };
+  if (input.branch) note.branch = input.branch;
+  if (input.commit) note.commit = input.commit;
+  if (input.attachments?.length) note.attachments = input.attachments;
+  return note;
+}
+
+function nextAttachmentId(index: number): string {
+  return `att-${nextId(index)}`;
+}
+
 function validateText(field: string, value: string | undefined): void {
   if (value && value.length > MAX_TEXT_LENGTH) {
     throw new Error(`${field} must be at most ${MAX_TEXT_LENGTH} characters`);
@@ -801,6 +1128,9 @@ function formatDecision(decision: RoomDecision): string {
   const links = decision.links?.length
     ? `\nLinks:\n${decision.links.map((link) => `- ${link}`).join("\n")}\n`
     : "";
+  const attachments = decision.attachments?.length
+    ? `\nAttachments:\n${decision.attachments.map((item) => `- ${item.name}: ${item.url}`).join("\n")}\n`
+    : "";
 
   return `## ${decision.id} - ${decision.title}
 
@@ -811,6 +1141,6 @@ ${decision.decision}
 
 Rationale:
 ${decision.rationale}
-${links}
+${links}${attachments}
 `;
 }

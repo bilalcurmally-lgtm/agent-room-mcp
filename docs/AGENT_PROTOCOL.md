@@ -39,6 +39,23 @@ Evidence:
 
 Use only the fields that matter, but always include `STATUS` and `NEXT`.
 
+You can also pass structured MCP fields instead of inline tags:
+
+```json
+{
+  "from": "codex-desktop",
+  "to": "all",
+  "topic": "C1 handoff",
+  "body": "Routing is ready.",
+  "status": "implementing",
+  "phase": "C1",
+  "next": "Claude review"
+}
+```
+
+Phase labels: `C1`, `C2`, … or `review`, `blocked`, `merge`, `handoff`. See
+[PROTOCOL_ENFORCEMENT.md](PROTOCOL_ENFORCEMENT.md) for validation and strict mode.
+
 ## Examples
 
 ### Implementation Handoff

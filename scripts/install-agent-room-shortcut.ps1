@@ -100,4 +100,15 @@ $shortcut.WindowStyle = 1
 $shortcut.Description = if ($Watch) { "Start Agent Room watcher notifications" } else { "Open the Agent Room dashboard" }
 $shortcut.Save()
 
+New-Item -ItemType Directory -Force -Path $Room | Out-Null
+$markerPath = Join-Path $Room ".launcher-suite.json"
+@{
+  installedAt = (Get-Date).ToUniversalTime().ToString("o")
+  dashboard = -not $Watch
+  watch = [bool]$Watch
+  shortcut = $ShortcutName
+  version = 1
+} | ConvertTo-Json | Set-Content -Path $markerPath -Encoding utf8
+
 Write-Output "Created shortcut: $shortcutPath"
+Write-Output "Wrote launcher marker: $markerPath"

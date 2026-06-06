@@ -59,7 +59,27 @@ project picker, room feed, agent list, task list, decision list, and a "Tell the
 
 For a plain-English walkthrough, read [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 For agent message format and routing rules, read [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md).
+For workspace vs view filter, read [docs/PROJECT_WORKSPACE.md](docs/PROJECT_WORKSPACE.md).
+For file and link attachments, read [docs/ATTACHMENTS.md](docs/ATTACHMENTS.md).
 For Codex, Claude Code, and Cursor setup, read [docs/MCP_CLIENT_SETUP.md](docs/MCP_CLIENT_SETUP.md).
+
+After building, verify all three client profiles against the MCP server:
+
+```powershell
+npm run verify-clients
+npm run dogfood-ping-watch
+```
+
+Ping/watch setup for Claude hooks and Codex/Cursor watcher wake paths:
+[docs/PING_WATCH.md](docs/PING_WATCH.md).
+
+Start dashboard and watcher together:
+
+```powershell
+npm run start-suite
+```
+
+Launcher details: [docs/LAUNCHER.md](docs/LAUNCHER.md).
 
 ## MCP Client Config
 
@@ -94,6 +114,9 @@ For a global room, use a directory outside any single application repo, such as
 - `register_project`
 - `delete_project`
 - `list_projects`
+- `upload_attachment`
+- `link_attachment`
+- `list_attachments`
 - `get_room_status`
 
 Messages, tasks, and decisions support an optional `project` field so one global room can still
