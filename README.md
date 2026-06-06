@@ -203,12 +203,20 @@ tasks.json
 decisions.json
 decisions.md
 agents.json
+projects.json
 config.json
+attachments.json
+attachments/
 ```
 
 JSON storage writes are serialized and written atomically. `agents.json` tracks registered agents and
-last-read message ids. Malformed storage files are reported with clear recovery errors instead of
-being silently reset.
+last-read message ids. `projects.json` holds registered project folders, `attachments.json` indexes
+uploaded files and links, and the `attachments/` directory stores the uploaded file bytes. Malformed
+storage files are reported with clear recovery errors instead of being silently reset.
+
+Writes are guarded by a `room.lock` file. If a process is killed mid-write the lock is reclaimed
+automatically once the owning process is gone (or after it sits abandoned), so a crash no longer
+wedges the room.
 
 ## Security And Privacy
 

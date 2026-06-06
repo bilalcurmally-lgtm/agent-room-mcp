@@ -51,8 +51,11 @@ const ReadMessagesInput = {
   agent: z.string().min(1),
   sinceId: z.string().optional(),
   includeBroadcasts: z.boolean().optional(),
-  project: z.string().min(1).max(MAX_TEXT_LENGTH).optional()
+  project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+  limit: z.number().int().positive().optional()
 };
+
+const DEFAULT_READ_LIMIT = 200;
 
 const CreateTaskInput = {
   title: z.string().min(1).max(MAX_TEXT_LENGTH),
@@ -97,7 +100,8 @@ const MarkMessagesReadInput = {
 const CheckInInput = {
   agent: z.string().min(1).max(MAX_TEXT_LENGTH),
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
-  includeBroadcasts: z.boolean().optional()
+  includeBroadcasts: z.boolean().optional(),
+  limit: z.number().int().positive().optional()
 };
 
 const ListTasksInput = {
@@ -208,7 +212,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     "read_messages",
     {
       title: "Read messages",
-      description: "Read messages addressed to an agent, optionally after a message id.",
+      description:
+        "Read messages addressed to an agent, optionally after a message id. Returns the most recent matches (default 200); pass limit to widen or narrow.",
       inputSchema: ReadMessagesInput
     },
     async (input) => {
@@ -216,7 +221,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       return jsonResult(
         await store.readMessages({
           ...input,
-          project: resolveRoomProject(config, input.project)
+          project: resolveRoomProject(config, input.project),
+          limit: input.limit ?? DEFAULT_READ_LIMIT
         })
       );
     }
@@ -259,7 +265,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     "check_in",
     {
       title: "Check in",
-      description: "Return an agent's unread messages, assigned tasks, open tasks, recent decisions, and room status.",
+      description:
+        "Return an agent's unread messages (most recent 50 by default; full total in unreadCount), assigned tasks, open tasks, recent decisions, and room status. Pass limit to change the inbox size.",
       inputSchema: CheckInInput
     },
     async (input) => {

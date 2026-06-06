@@ -1,4 +1,4 @@
-import { appendFile, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   decodeAttachmentContent,
@@ -13,6 +13,7 @@ import {
   type UploadAttachmentInput
 } from "./attachments.js";
 import { assessProtocolCompliance, enrichMessageBody } from "./protocol.js";
+import { messageTargetsAgent } from "./routing.js";
 import { buildStaleItemWarnings, type StaleItemWarning } from "./temporal.js";
 import { createRoomTime, type RoomTime } from "./time.js";
 
@@ -20,6 +21,9 @@ export type { AttachmentRef, StoredAttachment, UploadAttachmentInput, LinkAttach
 
 export const MAX_TEXT_LENGTH = 100_000;
 export const STALE_TASK_AFTER_HOURS = 24;
+// Cap a check_in inbox so a brand-new agent does not get the entire room history
+// dumped into its context on first contact. unreadCount still reports the true total.
+export const DEFAULT_INBOX_LIMIT = 50;
 
 export type AgentId = string;
 export type TaskStatus = "open" | "claimed" | "blocked" | "done";
@@ -51,6 +55,7 @@ export interface ReadMessagesInput {
   sinceId?: string;
   includeBroadcasts?: boolean;
   project?: string;
+  limit?: number;
 }
 
 export interface CreateTaskInput {
@@ -134,6 +139,7 @@ export interface CheckInInput {
   agent: AgentId;
   project?: string;
   includeBroadcasts?: boolean;
+  limit?: number;
 }
 
 export interface AgentCheckIn {
@@ -141,6 +147,7 @@ export interface AgentCheckIn {
   roomTime: RoomTime;
   projectRecord?: RoomProject;
   unreadMessages: RoomMessage[];
+  unreadCount: number;
   assignedTasks: RoomTask[];
   openTasks: RoomTask[];
   staleTasks: StaleTaskWarning[];
@@ -403,7 +410,7 @@ export class AgentRoomStore {
 
   async readMessages(input: ReadMessagesInput): Promise<RoomMessage[]> {
     const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
-    return filterVisibleMessages(messages, input);
+    return filterVisibleMessages(messages, input, input.limit);
   }
 
   async listMessages(): Promise<RoomMessage[]> {
@@ -470,12 +477,17 @@ export class AgentRoomStore {
     const agent = agents.find((candidate) => candidate.id === input.agent)
       ?? (await this.registerAgent({ agent: input.agent }));
 
-    const unreadMessages = await this.readMessages({
+    const allUnread = await this.readMessages({
       agent: input.agent,
       sinceId: agent.lastReadMessageId,
       includeBroadcasts: input.includeBroadcasts,
       project: input.project
     });
+    const inboxLimit = input.limit ?? DEFAULT_INBOX_LIMIT;
+    const unreadMessages =
+      inboxLimit >= 0 && allUnread.length > inboxLimit
+        ? allUnread.slice(allUnread.length - inboxLimit)
+        : allUnread;
 
     const assignedTasks = await this.listTasks({ owner: input.agent, project: input.project });
     const openTasks = await this.listTasks({ status: "open", project: input.project });
@@ -499,6 +511,7 @@ export class AgentRoomStore {
       roomTime: createRoomTime(),
       projectRecord,
       unreadMessages,
+      unreadCount: allUnread.length,
       assignedTasks,
       openTasks,
       staleTasks,
@@ -564,8 +577,11 @@ export class AgentRoomStore {
     });
   }
 
-  async listStaleMessages(input: ListStaleTasksInput = {}): Promise<StaleItemWarning[]> {
-    const messages = await this.listMessages();
+  async listStaleMessages(
+    input: ListStaleTasksInput = {},
+    preloaded?: RoomMessage[]
+  ): Promise<StaleItemWarning[]> {
+    const messages = preloaded ?? (await this.listMessages());
     return buildStaleItemWarnings(
       messages,
       (message) => message.time,
@@ -576,8 +592,11 @@ export class AgentRoomStore {
     );
   }
 
-  async listStaleDecisions(input: ListStaleTasksInput = {}): Promise<StaleItemWarning[]> {
-    const decisions = await this.readDecisions();
+  async listStaleDecisions(
+    input: ListStaleTasksInput = {},
+    preloaded?: RoomDecision[]
+  ): Promise<StaleItemWarning[]> {
+    const decisions = preloaded ?? (await this.readDecisions());
     return buildStaleItemWarnings(
       decisions,
       (decision) => decision.time,
@@ -588,10 +607,13 @@ export class AgentRoomStore {
     );
   }
 
-  async listStaleTasks(input: ListStaleTasksInput = {}): Promise<StaleTaskWarning[]> {
+  async listStaleTasks(
+    input: ListStaleTasksInput = {},
+    preloaded?: RoomTask[]
+  ): Promise<StaleTaskWarning[]> {
     const nowTime = (input.now ?? new Date()).getTime();
     const threshold = input.olderThanHours ?? STALE_TASK_AFTER_HOURS;
-    const tasks = await this.readTasks();
+    const tasks = preloaded ?? (await this.readTasks());
 
     return tasks.flatMap((task) => {
       if (task.status === "done") return [];
@@ -837,8 +859,13 @@ export class AgentRoomStore {
     });
   }
 
-  async getRoomStatus(): Promise<RoomStatus> {
-    const state = await this.readState();
+  async getRoomStatus(preloaded?: {
+    messages: RoomMessage[];
+    tasks: RoomTask[];
+    decisions: RoomDecision[];
+    agents: RoomAgent[];
+  }): Promise<RoomStatus> {
+    const state = preloaded ?? (await this.readState());
     return {
       roomDir: this.roomDir,
       messages: state.messages.length,
@@ -1014,11 +1041,27 @@ export class AgentRoomStore {
   }
 }
 
+const LOCK_TIMEOUT_MS = 5_000;
+// A lock whose owning process is dead, or that has no owner info and has sat
+// untouched this long, is treated as abandoned and reclaimed. This prevents a
+// crashed agent from wedging the room forever.
+const LOCK_STALE_MS = 30_000;
+
+interface LockInfo {
+  pid: number;
+  time: number;
+}
+
 async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): Promise<T> {
   const startedAt = Date.now();
   while (true) {
     try {
       const handle = await open(lockPath, "wx");
+      try {
+        await handle.writeFile(JSON.stringify({ pid: process.pid, time: Date.now() } satisfies LockInfo));
+      } catch {
+        // Best-effort owner stamp; an unwritable stamp does not block the operation.
+      }
       try {
         return await operation();
       } finally {
@@ -1026,9 +1069,62 @@ async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): P
         await rm(lockPath, { force: true });
       }
     } catch (error) {
-      if (!isAlreadyExists(error) || Date.now() - startedAt > 5_000) throw error;
+      if (!isAlreadyExists(error)) throw error;
+      if (await reclaimStaleLock(lockPath)) continue;
+      if (Date.now() - startedAt > LOCK_TIMEOUT_MS) {
+        throw new Error(
+          `Room is busy: another process holds ${lockPath}. If no agent is running, delete that file to recover.`
+        );
+      }
       await delay(25);
     }
+  }
+}
+
+async function reclaimStaleLock(lockPath: string): Promise<boolean> {
+  let raw: string;
+  try {
+    raw = await readFile(lockPath, "utf8");
+  } catch (error) {
+    // Lock vanished between our failed create and this read; retry immediately.
+    return isNotFound(error);
+  }
+
+  let info: LockInfo | null = null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<LockInfo>;
+    if (typeof parsed.pid === "number" && typeof parsed.time === "number") {
+      info = { pid: parsed.pid, time: parsed.time };
+    }
+  } catch {
+    info = null;
+  }
+
+  if (info && isProcessAlive(info.pid)) return false;
+  if (!info && Date.now() - (await lockAgeAnchor(lockPath)) < LOCK_STALE_MS) return false;
+
+  await rm(lockPath, { force: true }).catch(() => undefined);
+  return true;
+}
+
+async function lockAgeAnchor(lockPath: string): Promise<number> {
+  // No parseable owner stamp (legacy or corrupt lock): use the file's own
+  // mtime so a genuinely old lock is reclaimed and a fresh one is left alone.
+  try {
+    return (await stat(lockPath)).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists but we may not signal it; ESRCH means gone.
+    return isNodeError(error, "EPERM");
   }
 }
 
@@ -1069,16 +1165,30 @@ function validatePositiveInteger(field: string, value: number): void {
 
 function filterVisibleMessages(
   messages: RoomMessage[],
-  input: Pick<ReadMessagesInput, "agent" | "sinceId" | "includeBroadcasts" | "project">
+  input: Pick<ReadMessagesInput, "agent" | "sinceId" | "includeBroadcasts" | "project">,
+  limit?: number
 ): RoomMessage[] {
   const includeBroadcasts = input.includeBroadcasts ?? true;
 
-  return messages.filter((message) => {
+  const visible = messages.filter((message) => {
     if (input.sinceId && message.id <= input.sinceId) return false;
     if (!matchesProject(message, input.project)) return false;
-    if (message.to === input.agent) return true;
-    return includeBroadcasts && message.to === "all";
+    // Single source of truth for "who sees this": honors @mentions and
+    // excludes the sender's own messages. Mirrors routing.ts so reads and
+    // routing can never disagree.
+    if (!messageTargetsAgent(message, input.agent)) return false;
+    // A pure broadcast (no explicit mention of this agent) is suppressed when
+    // the caller opts out of broadcasts; a direct mention still gets through.
+    if (!includeBroadcasts && message.to === "all" && !message.mentions?.includes(input.agent)) {
+      return false;
+    }
+    return true;
   });
+
+  if (limit !== undefined && limit >= 0 && visible.length > limit) {
+    return visible.slice(visible.length - limit);
+  }
+  return visible;
 }
 
 function matchesProject(item: { project?: string }, project: string | undefined): boolean {

@@ -409,20 +409,26 @@ async function createSnapshot(
 ): Promise<Snapshot> {
   const projectFilter = selectedProject === "all" ? undefined : selectedProject;
   const dateRange = createDateRange(filters.since, filters.until);
+  // Read the room once per snapshot and derive every view from these arrays,
+  // instead of re-parsing the same files 4+ times per dashboard poll.
   const messages = await store.listMessages();
-  const tasks = await store.listTasks(projectFilter && projectFilter !== "unsorted" ? { project: projectFilter } : {});
+  const allTasks = await store.listTasks();
   const decisions = await store.listDecisions();
   const agents = await store.listAgents();
+  const tasks =
+    projectFilter && projectFilter !== "unsorted"
+      ? allTasks.filter((task) => task.project === projectFilter)
+      : allTasks;
   const projectRecords = await store.listProjectRecords();
   const config = await store.getConfig();
-  const status = await store.getRoomStatus();
+  const status = await store.getRoomStatus({ messages, tasks: allTasks, decisions, agents });
   const staleOptions =
     projectFilter && projectFilter !== "unsorted"
       ? { project: projectFilter, olderThanHours: config.staleTaskHours }
       : { olderThanHours: config.staleTaskHours };
-  const staleTasks = await store.listStaleTasks(staleOptions);
-  const staleMessages = await store.listStaleMessages(staleOptions);
-  const staleDecisions = await store.listStaleDecisions(staleOptions);
+  const staleTasks = await store.listStaleTasks(staleOptions, allTasks);
+  const staleMessages = await store.listStaleMessages(staleOptions, messages);
+  const staleDecisions = await store.listStaleDecisions(staleOptions, decisions);
   const roomTime = createRoomTime();
   const projectMessages = filterProject(messages, selectedProject);
   const projectTasks = filterProject(tasks, selectedProject);
@@ -719,10 +725,19 @@ function filterProject<T extends { project?: string }>(items: T[], selectedProje
   return items.filter((item) => item.project === selectedProject);
 }
 
+// Roomy enough for a 5 MB attachment after ~33% base64 inflation, with headroom.
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
+
 async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > MAX_BODY_BYTES) {
+      throw new HttpError(413, "Request body too large");
+    }
+    chunks.push(buffer);
   }
 
   try {

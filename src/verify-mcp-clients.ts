@@ -147,7 +147,9 @@ export async function verifyClientSetup(
     steps.push("post_message");
 
     const store = await AgentRoomStore.open(options.roomDir);
-    const messages = await store.readMessages({ agent: profile.agent, project, includeBroadcasts: true });
+    // Confirm the write landed on disk. Use the unfiltered log, not the
+    // agent-scoped read: a sender does not see its own message by design.
+    const messages = await store.listMessages();
     if (!messages.some((item) => item.id === message.id)) {
       throw new Error("posted message not visible in room storage");
     }

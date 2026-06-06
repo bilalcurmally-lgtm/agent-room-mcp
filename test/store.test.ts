@@ -224,10 +224,11 @@ describe("AgentRoomStore", () => {
     await store.postMessage(message({ from: "opus", to: "codex", topic: "Review", body: "Please fix A." }));
     await store.postMessage(message({ from: "codex", to: "all", topic: "Update", body: "I pushed A." }));
 
+    // codex authored the broadcast, so it does not count as codex's own unread.
     expect(await store.getRoomStatus()).toMatchObject({
       agents: 2,
       unread: {
-        codex: 2,
+        codex: 1,
         opus: 1
       }
     });
@@ -449,6 +450,58 @@ describe("AgentRoomStore", () => {
     });
     expect(await store.listProjectRecords()).toEqual([]);
     expect(await store.listProjects()).toEqual(["audit-cockpit"]);
+  });
+
+  it("excludes a sender's own messages and routes by mention", async () => {
+    const store = await makeStore();
+    await store.postMessage(message({ from: "codex", to: "all", topic: "Broadcast", body: "I pushed A." }));
+    await store.postMessage({ from: "user", to: "all", topic: "Targeted", body: "ping", mentions: ["opus"] });
+
+    // codex authored the broadcast, so it is not in codex's own inbox.
+    expect(await store.readMessages({ agent: "codex" })).toEqual([]);
+    // opus is mentioned on the targeted note and also sees the broadcast.
+    expect((await store.readMessages({ agent: "opus" })).map((m) => m.topic)).toEqual([
+      "Broadcast",
+      "Targeted"
+    ]);
+    // grok is neither sender nor mentioned, so the mention-scoped note is hidden.
+    expect((await store.readMessages({ agent: "grok" })).map((m) => m.topic)).toEqual(["Broadcast"]);
+  });
+
+  it("caps the check-in inbox and reports the true unread total", async () => {
+    const store = await makeStore();
+    for (let i = 0; i < 5; i += 1) {
+      await store.postMessage(message({ from: "user", to: "codex", topic: `M${i}` }));
+    }
+
+    const checkIn = await store.checkIn({ agent: "codex", limit: 2 });
+    expect(checkIn.unreadCount).toBe(5);
+    expect(checkIn.unreadMessages.map((m) => m.topic)).toEqual(["M3", "M4"]);
+  });
+
+  it("returns only the most recent messages when a read limit is set", async () => {
+    const store = await makeStore();
+    for (let i = 0; i < 4; i += 1) {
+      await store.postMessage(message({ from: "user", to: "codex", topic: `M${i}` }));
+    }
+
+    expect((await store.readMessages({ agent: "codex", limit: 2 })).map((m) => m.topic)).toEqual([
+      "M2",
+      "M3"
+    ]);
+  });
+
+  it("reclaims a lock left behind by a dead process", async () => {
+    const store = await makeStore();
+    await writeFile(
+      join(store.roomDir, "room.lock"),
+      JSON.stringify({ pid: 999_999_999, time: Date.now() - 60_000 }),
+      "utf8"
+    );
+
+    await expect(
+      store.postMessage(message({ from: "user", to: "codex", topic: "After crash" }))
+    ).resolves.toMatchObject({ topic: "After crash" });
   });
 });
 
