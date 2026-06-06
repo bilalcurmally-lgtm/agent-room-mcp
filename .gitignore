@@ -5,3 +5,4 @@ dist/
 agent-tools/
 mcps/
 terminals/
+.playwright-mcp/
