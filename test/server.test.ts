@@ -74,6 +74,8 @@ describe("createServer", () => {
         "register_agent",
         "check_in",
         "mark_messages_read",
+        "set_active_project",
+        "get_room_config",
         "register_project",
         "delete_project",
         "list_projects",

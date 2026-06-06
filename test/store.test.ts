@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import {
   AgentRoomStore,
+  resolveRoomProject,
   type CreateTaskInput,
   type RegisterAgentInput,
   type PostMessageInput,
@@ -371,6 +372,14 @@ describe("AgentRoomStore", () => {
 
     const raw = JSON.parse(await readFile(join(store.roomDir, "config.json"), "utf8"));
     expect(raw).toMatchObject({ currentUser: "bill" });
+  });
+
+  it("resolves omitted MCP project inputs through the room active project", () => {
+    const config = { staleTaskHours: 24, currentUser: "user", enforceProtocol: false, activeProject: "alpha" };
+
+    expect(resolveRoomProject(config, undefined)).toBe("alpha");
+    expect(resolveRoomProject(config, "beta")).toBe("beta");
+    expect(resolveRoomProject(config, "all")).toBeUndefined();
   });
 
   it("lists projects from messages, tasks, and decisions with unsorted fallback", async () => {

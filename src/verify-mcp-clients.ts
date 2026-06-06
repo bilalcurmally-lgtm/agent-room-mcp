@@ -105,7 +105,7 @@ export async function verifyClientSetup(
 
     const tools = await client.listTools();
     const toolNames = tools.tools.map((tool) => tool.name);
-    for (const required of ["register_agent", "check_in", "post_message", "get_room_status"]) {
+    for (const required of ["register_agent", "check_in", "post_message", "set_active_project", "get_room_config", "get_room_status"]) {
       if (!toolNames.includes(required)) {
         throw new Error(`Missing tool: ${required}`);
       }
@@ -120,10 +120,15 @@ export async function verifyClientSetup(
     if (agent.id !== profile.agent) throw new Error(`register_agent returned ${agent.id}`);
     steps.push("register_agent");
 
-    const checkIn = (await callToolJson(client, "check_in", {
-      agent: profile.agent,
+    const config = (await callToolJson(client, "set_active_project", {
       project
-    })) as { agent: { id: string }; status: { roomDir: string } };
+    })) as { activeProject?: string };
+    if (config.activeProject !== project) throw new Error("set_active_project did not persist active project");
+    steps.push("set_active_project");
+
+    const checkIn = (await callToolJson(client, "check_in", {
+      agent: profile.agent
+    })) as { agent: { id: string }; status: { roomDir: string }; projectRecord?: unknown };
     if (checkIn.agent.id !== profile.agent) throw new Error("check_in agent mismatch");
     if (checkIn.status.roomDir !== resolve(options.roomDir)) throw new Error("check_in roomDir mismatch");
     steps.push("check_in");
@@ -133,11 +138,10 @@ export async function verifyClientSetup(
       from: profile.agent,
       to: "all",
       topic,
-      body: `[STATUS: reviewing] ${profile.client} setup verification. [NEXT: Confirm in dashboard.]`,
-      project
-    })) as { id: string; from: string; topic: string };
+      body: `[STATUS: reviewing] ${profile.client} setup verification. [NEXT: Confirm in dashboard.]`
+    })) as { id: string; from: string; topic: string; project?: string };
 
-    if (message.from !== profile.agent || message.topic !== topic) {
+    if (message.from !== profile.agent || message.topic !== topic || message.project !== project) {
       throw new Error("post_message payload mismatch");
     }
     steps.push("post_message");

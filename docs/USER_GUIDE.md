@@ -105,7 +105,8 @@ All visible cards show date/time information in your local computer time.
 Projects work like folders.
 
 If you select `dashboard-v2`, messages, tasks, and decisions you create are tagged for that project.
-Agents should use the same project name when they check in.
+Agents should use `set_active_project` for that same project once, then they can check in and post
+without repeating the project name on every tool call.
 
 For real workspaces, use **Add project folder**. Add:
 

@@ -28,7 +28,7 @@ describe("MCP client setup verification", () => {
     for (const profile of CLIENT_SETUP_PROFILES) {
       const result = results.find((item) => item.agent === profile.agent);
       expect(result?.steps).toEqual(
-        expect.arrayContaining(["register_agent", "check_in", "post_message", "room storage confirmed"])
+        expect.arrayContaining(["register_agent", "set_active_project", "check_in", "post_message", "room storage confirmed"])
       );
     }
   }, 60_000);

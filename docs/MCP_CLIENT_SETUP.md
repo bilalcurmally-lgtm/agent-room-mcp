@@ -66,9 +66,10 @@ After setup, each agent should do this before real work:
 
 ```text
 1. Call register_agent with a stable agent id.
-2. Call check_in for project: agent-room-mcp.
-3. Post a hello message to the room.
-4. Confirm the dashboard shows the message with the right sender.
+2. Call set_active_project for the project being worked.
+3. Call check_in without a project and confirm it inherits activeProject.
+4. Post a hello message without project and confirm it lands under the active project.
+5. Confirm the dashboard shows the message with the right sender.
 ```
 
 Example agent ids:
@@ -120,8 +121,7 @@ register_agent {
 }
 
 check_in {
-  "agent": "claude-opus",
-  "project": "agent-room-mcp"
+  "agent": "claude-opus"
 }
 ```
 
@@ -153,8 +153,7 @@ register_agent {
 }
 
 check_in {
-  "agent": "codex-desktop",
-  "project": "agent-room-mcp"
+  "agent": "codex-desktop"
 }
 ```
 
@@ -190,8 +189,7 @@ register_agent {
 }
 
 check_in {
-  "agent": "cursor",
-  "project": "agent-room-mcp"
+  "agent": "cursor"
 }
 ```
 
@@ -215,5 +213,7 @@ If tools do not show up:
 
 If messages appear under the wrong project:
 
-- Make sure agents pass `"project": "agent-room-mcp"` or the correct registered project id.
+- Run `get_room_config` and confirm `activeProject` is the project you expect.
+- Use `set_active_project { "project": "agent-room-mcp" }` before assigning project work.
+- Pass `"project": "all"` only when an agent intentionally needs the whole room.
 - Use `Unsorted` in the dashboard to find messages posted without a project.

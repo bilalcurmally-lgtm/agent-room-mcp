@@ -127,6 +127,7 @@ export interface MarkMessagesReadInput {
   agent: AgentId;
   throughId?: string;
   includeBroadcasts?: boolean;
+  project?: string;
 }
 
 export interface CheckInInput {
@@ -246,6 +247,15 @@ export function resolveWriteProject(
   if (config.activeProject) return config.activeProject;
   if (viewProject === "all" || viewProject === "unsorted") return undefined;
   return viewProject;
+}
+
+export function resolveRoomProject(
+  config: RoomConfig,
+  project: string | undefined
+): string | undefined {
+  if (project === "all") return undefined;
+  if (project !== undefined) return project;
+  return config.activeProject;
 }
 
 interface RoomState {
@@ -439,7 +449,11 @@ export class AgentRoomStore {
     return this.withExclusiveWrite(async () => {
       const agents = await this.readAgents();
       const agent = findAgent(agents, input.agent);
-      const messages = await this.readMessages({ agent: input.agent, includeBroadcasts: input.includeBroadcasts });
+      const messages = await this.readMessages({
+        agent: input.agent,
+        includeBroadcasts: input.includeBroadcasts,
+        project: input.project
+      });
       const latestVisibleId = messages.at(-1)?.id;
       agent.lastReadMessageId = input.throughId ?? latestVisibleId ?? agent.lastReadMessageId;
       agent.updatedAt = now();

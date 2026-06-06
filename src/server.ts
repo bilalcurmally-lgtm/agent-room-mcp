@@ -6,7 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { assertProtocolCompliant } from "./protocol.js";
 import { resolveMessageRoute } from "./routing.js";
-import { AgentRoomStore, MAX_TEXT_LENGTH } from "./store.js";
+import { AgentRoomStore, MAX_TEXT_LENGTH, resolveRoomProject } from "./store.js";
 
 const VERSION = "0.1.0";
 
@@ -28,6 +28,10 @@ const MessageInput = {
   phase: z.string().max(MAX_TEXT_LENGTH).optional(),
   attachmentIds: z.array(z.string().min(1)).optional(),
   links: z.array(AttachmentLinkInput).optional()
+};
+
+const ActiveProjectInput = {
+  project: z.string().min(1).max(MAX_TEXT_LENGTH).nullable().optional()
 };
 
 const UploadAttachmentInput = {
@@ -86,7 +90,8 @@ const DeleteProjectInput = {
 const MarkMessagesReadInput = {
   agent: z.string().min(1).max(MAX_TEXT_LENGTH),
   throughId: z.string().min(1).optional(),
-  includeBroadcasts: z.boolean().optional()
+  includeBroadcasts: z.boolean().optional(),
+  project: z.string().min(1).max(MAX_TEXT_LENGTH).optional()
 };
 
 const CheckInInput = {
@@ -151,6 +156,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => {
       const config = await store.getConfig();
       assertProtocolCompliant(input, config.enforceProtocol);
+      const project = resolveRoomProject(config, input.project);
       const agents = await store.listAgents();
       const route = resolveMessageRoute({
         body: input.body,
@@ -160,6 +166,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       return jsonResult(
         await store.postMessage({
           ...input,
+          project,
           to: route.to,
           mentions: route.mentions
         })
@@ -204,7 +211,15 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "Read messages addressed to an agent, optionally after a message id.",
       inputSchema: ReadMessagesInput
     },
-    async (input) => jsonResult(await store.readMessages(input))
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(
+        await store.readMessages({
+          ...input,
+          project: resolveRoomProject(config, input.project)
+        })
+      );
+    }
   );
 
   server.registerTool(
@@ -214,7 +229,10 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "Create a shared task in the room task board.",
       inputSchema: CreateTaskInput
     },
-    async (input) => jsonResult(await store.createTask(input))
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(await store.createTask({ ...input, project: resolveRoomProject(config, input.project) }));
+    }
   );
 
   server.registerTool(
@@ -244,7 +262,10 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "Return an agent's unread messages, assigned tasks, open tasks, recent decisions, and room status.",
       inputSchema: CheckInInput
     },
-    async (input) => jsonResult(await store.checkIn(input))
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(await store.checkIn({ ...input, project: resolveRoomProject(config, input.project) }));
+    }
   );
 
   server.registerTool(
@@ -254,7 +275,40 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "Advance an agent's last-read pointer after it has consumed its inbox.",
       inputSchema: MarkMessagesReadInput
     },
-    async (input) => jsonResult(await store.markMessagesRead(input))
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(
+        await store.markMessagesRead({
+          ...input,
+          project: resolveRoomProject(config, input.project)
+        })
+      );
+    }
+  );
+
+  server.registerTool(
+    "set_active_project",
+    {
+      title: "Set active project",
+      description:
+        "Set the room's default project for MCP agent reads and writes. Pass project null, empty, or omit it to clear. Pass project \"all\" on individual tool calls to bypass this default.",
+      inputSchema: ActiveProjectInput
+    },
+    async (input) =>
+      jsonResult(
+        await store.updateConfig({
+          activeProject: input.project === "all" ? null : input.project ?? null
+        })
+      )
+  );
+
+  server.registerTool(
+    "get_room_config",
+    {
+      title: "Get room config",
+      description: "Return room settings including activeProject so agents know the default project scope."
+    },
+    async () => jsonResult(await store.getConfig())
   );
 
   server.registerTool(
@@ -297,7 +351,10 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "List room tasks, optionally filtered by status, owner, or project.",
       inputSchema: ListTasksInput
     },
-    async (input) => jsonResult(await store.listTasks(input))
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(await store.listTasks({ ...input, project: resolveRoomProject(config, input.project) }));
+    }
   );
 
   server.registerTool(
@@ -329,7 +386,10 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "Append a durable team decision to the room decision log.",
       inputSchema: RecordDecisionInput
     },
-    async (input) => jsonResult(await store.recordDecision(input))
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(await store.recordDecision({ ...input, project: resolveRoomProject(config, input.project) }));
+    }
   );
 
   server.registerTool(

@@ -1,6 +1,6 @@
 # Project Workspace vs View Filter
 
-Last updated: 2026-06-05
+Last updated: 2026-06-06
 
 The dashboard separates **where writes go** from **what you read**.
 
@@ -37,6 +37,15 @@ and **Working in** for day-to-day switching.
 
 ## MCP
 
-Agents do not have a separate “set workspace” tool yet; pass `project` on writes or register projects
-with `register_project` and tag messages consistently. Dashboard `activeProject` applies to human
-posts from the control room only unless agents also send `project` on each tool call.
+Agents have the same default project concept through MCP:
+
+- `set_active_project { "project": "agent-room-mcp" }` stores the room default.
+- `get_room_config` returns the current `activeProject`.
+- `post_message`, `read_messages`, `check_in`, `mark_messages_read`, `create_task`,
+  `list_tasks`, and `record_decision` use `activeProject` when their own `project` field is omitted.
+- Pass `project: "all"` on an individual read/check-in/list call to bypass the active project and
+  inspect the whole room.
+- Pass a concrete `project` on any tool call to override the active project for that call only.
+
+This means a project lead can set the room to one project once, then agents can stop manually
+remembering the project tag on every message.

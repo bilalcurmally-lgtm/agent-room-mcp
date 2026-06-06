@@ -9,6 +9,7 @@ export const AGENT_WAKE_PROFILES = [
     client: "Claude Code",
     primary: "notifier+hook",
     hook: "scripts/room-ping.mjs",
+    wakeCheck: "node scripts/room-ping.mjs --agent claude-opus",
     watcher: "toast+inbox",
     notes: "Global notifier delivers toast/inbox; UserPromptSubmit and SessionStart hooks can also inject unread room messages into context."
   },
@@ -17,22 +18,25 @@ export const AGENT_WAKE_PROFILES = [
     client: "Codex",
     primary: "notifier",
     hook: null,
+    wakeCheck: "node scripts/room-ping.mjs --agent codex-desktop",
     watcher: "toast+inbox",
-    notes: "Global notifier delivers toast/inbox while the dashboard is running; external room-watch is optional redundancy."
+    notes: "Global notifier delivers toast/inbox while the dashboard is running; Codex should run its wakeCheck when alerted. External room-watch is optional redundancy."
   },
   {
     agent: "cursor",
     client: "Cursor",
     primary: "notifier",
     hook: null,
+    wakeCheck: "node scripts/room-ping.mjs --agent cursor",
     watcher: "toast+inbox",
-    notes: "Use dashboard notifier alerts; paste from .wake-inbox-cursor.txt in the room directory if needed."
+    notes: "Use dashboard notifier alerts; Cursor should run its wakeCheck when alerted. Paste from .wake-inbox-cursor.txt only as fallback."
   },
   {
     agent: "grok",
     client: "Grok",
     primary: "notifier",
     hook: null,
+    wakeCheck: "node scripts/room-ping.mjs --agent grok",
     watcher: "toast+inbox",
     notes: "Register as grok, then rely on the room notifier or watcher inbox file."
   },
@@ -41,6 +45,7 @@ export const AGENT_WAKE_PROFILES = [
     client: "Antigravity",
     primary: "notifier",
     hook: null,
+    wakeCheck: "node scripts/room-ping.mjs --agent antigravity",
     watcher: "toast+inbox",
     notes: "Register as antigravity, then rely on the room notifier or watcher inbox file."
   }
@@ -56,6 +61,7 @@ export function formatWakeMatrix() {
     lines.push(`${profile.client} (${profile.agent})`);
     lines.push(`  primary: ${profile.primary}`);
     if (profile.hook) lines.push(`  hook: ${profile.hook}`);
+    lines.push(`  wakeCheck: ${profile.wakeCheck}`);
     lines.push(`  watcher: ${profile.watcher}`);
     lines.push(`  ${profile.notes}`);
     lines.push("");
