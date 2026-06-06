@@ -1822,26 +1822,24 @@ export const dashboardHtml = `<!doctype html>
         setEmpty(feed, "No messages yet", "Post below to reach all agents, or route to Codex or Claude.");
         return;
       }
+      const newestFirst = [...messages].sort((a, b) => {
+        const timeDelta = new Date(b.time).getTime() - new Date(a.time).getTime();
+        return timeDelta || String(b.id).localeCompare(String(a.id));
+      });
 
       if (selectedProject !== "all") {
-        feed.append(...messages.map((message) => renderMessageCard(message, false)));
+        feed.append(...newestFirst.map((message) => renderMessageCard(message, false)));
         return;
       }
 
       const groups = new Map();
-      for (const message of messages) {
+      for (const message of newestFirst) {
         const key = message.project || "unsorted";
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(message);
       }
 
-      const orderedKeys = [...groups.keys()].sort((a, b) => {
-        if (a === "unsorted") return 1;
-        if (b === "unsorted") return -1;
-        return projectLabel(a).localeCompare(projectLabel(b));
-      });
-
-      for (const key of orderedKeys) {
+      for (const key of groups.keys()) {
         const groupMessages = groups.get(key) || [];
         const group = document.createElement("div");
         group.className = "feed-project-group";
