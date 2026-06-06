@@ -942,7 +942,7 @@ export const dashboardHtml = `<!doctype html>
       try {
         open = localStorage.getItem(PANEL_KEY) !== "0";
       } catch {}
-      if (window.matchMedia("(max-width: 720px)").matches) open = true;
+      if (window.matchMedia("(max-width: 720px)").matches) open = false;
       setPanelOpen(open);
     }
 
@@ -2274,7 +2274,7 @@ export const dashboardHtml = `<!doctype html>
     setInterval(loadSnapshot, 5000);
     setInterval(loadNotifications, 5000);
     window.matchMedia("(max-width: 720px)").addEventListener("change", (event) => {
-      if (event.matches) setPanelOpen(true);
+      if (event.matches) setPanelOpen(false);
     });
   </script>
 </body>
