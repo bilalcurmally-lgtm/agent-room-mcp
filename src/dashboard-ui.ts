@@ -391,7 +391,7 @@ export const dashboardHtml = `<!doctype html>
       border-top: 1px solid var(--line);
       background: #fff;
     }
-    .route-presets, .filter-presets, .task-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+    .route-presets, .filter-presets, .template-presets, .task-owner-presets, .task-actions { display: flex; gap: 7px; flex-wrap: wrap; }
     textarea, input, select, button { font: inherit; }
     textarea, input, select {
       width: 100%;
@@ -425,15 +425,24 @@ export const dashboardHtml = `<!doctype html>
     }
     button:active { transform: translateY(1px); }
     button:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
-    .filter-presets button, .route-presets button, .task-actions button, #refresh, #side-toggle, #side-toggle-inline, #panel-open, #project-browse, #project-load, #project-delete, .inline-toggle {
+    .filter-presets button, .route-presets button, .template-presets button, .task-owner-presets button, .task-actions button, #refresh, #side-toggle, #side-toggle-inline, #panel-open, #project-browse, #project-load, #project-delete, .inline-toggle {
       border-color: var(--line);
       background: #fff;
       color: var(--ink);
     }
-    .filter-presets button:hover, .route-presets button:hover, .task-actions button:hover, #refresh:hover, #side-toggle:hover, #side-toggle-inline:hover, #panel-open:hover, #project-browse:hover, #project-load:hover, .inline-toggle:hover {
+    .filter-presets button:hover, .route-presets button:hover, .template-presets button:hover, .task-owner-presets button:hover, .task-actions button:hover, #refresh:hover, #side-toggle:hover, #side-toggle-inline:hover, #panel-open:hover, #project-browse:hover, #project-load:hover, .inline-toggle:hover {
       border-color: rgba(13, 127, 115, 0.45);
       background: var(--accent-soft);
       color: var(--accent-ink);
+    }
+    .template-presets button, .task-owner-presets button {
+      min-height: 32px;
+      padding: 5px 9px;
+      font-size: 12px;
+    }
+    .composer-row {
+      display: grid;
+      gap: 8px;
     }
     #project-delete:hover {
       border-color: rgba(180, 35, 24, 0.36);
@@ -540,11 +549,19 @@ export const dashboardHtml = `<!doctype html>
         <div id="feed" class="feed"></div>
         <div id="workspace-banner" class="workspace-banner warn" hidden></div>
         <form id="message-form" class="composer">
-        <label>Route to <input id="message-to" value="all" /></label>
-        <div class="route-presets" aria-label="Route presets">
-          <button type="button" data-route-preset="all">To all</button>
-          <button type="button" data-route-preset="codex-desktop">To Codex</button>
-          <button type="button" data-route-preset="claude-opus">To Claude</button>
+        <div class="composer-row">
+          <label>Route to <input id="message-to" value="all" /></label>
+          <div class="route-presets" aria-label="Route presets">
+            <button type="button" data-route-preset="all">To all</button>
+            <button type="button" data-route-preset="codex-desktop">To Codex</button>
+            <button type="button" data-route-preset="claude-opus">To Claude</button>
+          </div>
+        </div>
+        <div class="template-presets" aria-label="Message templates">
+          <button type="button" data-message-template="assign">Assign work</button>
+          <button type="button" data-message-template="review">Request review</button>
+          <button type="button" data-message-template="status">Ask status</button>
+          <button type="button" data-message-template="blocked">Report blocker</button>
         </div>
         <select id="message-status">
           <option value="">Status (optional)</option>
@@ -558,7 +575,7 @@ export const dashboardHtml = `<!doctype html>
         <textarea id="message" rows="3" placeholder="Tell the room... or use the structured fields above"></textarea>
         <label>Attach files <input id="message-files" type="file" multiple accept="text/*,image/*,.pdf,.json,.zip" /></label>
         <div id="message-attachments-pending" class="attachment-pending" hidden></div>
-        <button type="submit">Tell all agents</button>
+        <button id="message-submit" type="submit">Tell all agents</button>
         </form>
       </details>
     </section>
@@ -613,6 +630,12 @@ export const dashboardHtml = `<!doctype html>
               <input id="task-title" placeholder="Task title" />
               <textarea id="task-body" rows="2" placeholder="Task details"></textarea>
               <input id="task-owner" placeholder="Owner (optional)" />
+              <div class="task-owner-presets" aria-label="Task owner presets">
+                <button type="button" data-task-owner="codex-desktop">Codex owns</button>
+                <button type="button" data-task-owner="claude-opus">Claude owns</button>
+                <button type="button" data-task-owner="user">I own</button>
+                <button type="button" data-task-owner="">No owner</button>
+              </div>
               <button type="submit">Create task</button>
             </form>
             <form id="task-update-form" class="composer">
@@ -704,6 +727,7 @@ export const dashboardHtml = `<!doctype html>
     const messagePhase = document.getElementById("message-phase");
     const messageNext = document.getElementById("message-next");
     const messageTo = document.getElementById("message-to");
+    const messageSubmit = document.getElementById("message-submit");
     const messageFiles = document.getElementById("message-files");
     const messageAttachmentsPending = document.getElementById("message-attachments-pending");
     let pendingAttachmentIds = [];
@@ -942,7 +966,7 @@ export const dashboardHtml = `<!doctype html>
         return;
       }
       if (preset === "mine") {
-        applyFilters({ actor: currentUserIdentity(), search: "", since: "", until: "" });
+        applyFilters({ agent: currentUserIdentity(), search: "", since: "", until: "" });
         return;
       }
       if (preset === "review") {
@@ -957,6 +981,53 @@ export const dashboardHtml = `<!doctype html>
     function applyRoutePreset(route) {
       if (!route) return;
       messageTo.value = route;
+      updateMessageSubmitLabel();
+    }
+
+    function routeLabel(route) {
+      const trimmed = (route || "all").trim();
+      if (trimmed === "all") return "all agents";
+      if (trimmed === "codex-desktop") return "Codex";
+      if (trimmed === "claude-opus") return "Claude";
+      return trimmed;
+    }
+
+    function updateMessageSubmitLabel() {
+      messageSubmit.textContent = "Tell " + routeLabel(messageTo.value);
+    }
+
+    function applyMessageTemplate(template) {
+      const templates = {
+        assign: {
+          status: "planning",
+          next: "Assigned agent should confirm scope, then either implement or name the blocker.",
+          body: "Please take this next:\\n\\nContext:\\n- \\n\\nAcceptance:\\n- "
+        },
+        review: {
+          status: "reviewing",
+          next: "Reviewer should post findings with file/commit references, or say clean.",
+          body: "Please review this work:\\n\\nScope:\\n- \\n\\nEvidence:\\n- "
+        },
+        status: {
+          status: "reviewing",
+          next: "Reply with current status, what changed, and the next concrete action.",
+          body: "Status check:\\n\\nWhat is done?\\nWhat is blocked?\\nWhat should happen next?"
+        },
+        blocked: {
+          status: "blocked",
+          next: "Name the smallest decision or missing input needed to unblock.",
+          body: "Blocked on:\\n\\nImpact:\\n\\nNeed:"
+        }
+      };
+      const next = templates[template];
+      if (!next) return;
+      messageStatus.value = next.status;
+      if (!messageNext.value.trim()) messageNext.value = next.next;
+      if (!messageInput.value.trim()) {
+        messageInput.value = next.body;
+        messageInput.focus();
+        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+      }
     }
 
     function setEmpty(container, title, hint) {
@@ -1567,6 +1638,20 @@ export const dashboardHtml = `<!doctype html>
       });
     });
 
+    document.querySelectorAll("[data-message-template]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyMessageTemplate(button.dataset.messageTemplate);
+      });
+    });
+
+    document.querySelectorAll("[data-task-owner]").forEach((button) => {
+      button.addEventListener("click", () => {
+        taskOwner.value = button.dataset.taskOwner || "";
+      });
+    });
+
+    messageTo.addEventListener("input", updateMessageSubmitLabel);
+
     staleThresholdForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const staleTaskHours = Number(staleThreshold.value);
@@ -1719,6 +1804,7 @@ export const dashboardHtml = `<!doctype html>
     });
 
     loadSnapshot();
+    updateMessageSubmitLabel();
     setInterval(loadSnapshot, 5000);
     window.matchMedia("(max-width: 960px)").addEventListener("change", (event) => {
       if (event.matches) setPanelOpen(true);

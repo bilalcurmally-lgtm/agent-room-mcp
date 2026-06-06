@@ -686,6 +686,20 @@ describe("dashboard server", () => {
     expect(html).toContain("function taskCard(task)");
   });
 
+  it("serves guided composer workflow controls in the dashboard HTML", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const html = await fetch(`${server.url}/`).then((res) => res.text());
+    expect(html).toContain("data-message-template=\"assign\"");
+    expect(html).toContain("data-message-template=\"review\"");
+    expect(html).toContain("data-task-owner=\"codex-desktop\"");
+    expect(html).toContain("function applyMessageTemplate(template)");
+    expect(html).toContain("function updateMessageSubmitLabel()");
+    expect(html).toContain("applyFilters({ agent: currentUserIdentity()");
+  });
+
   it("lets the user register a project folder and returns it in snapshots", async () => {
     const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
     const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
