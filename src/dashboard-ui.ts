@@ -279,6 +279,15 @@ export const dashboardHtml = `<!doctype html>
     .empty strong { color: var(--ink); font-weight: 600; font-style: normal; }
     .empty span { font-size: 12px; line-height: 1.4; }
     .empty-inline { font-size: 12px; color: var(--muted); padding: 4px 0; }
+    .more-inline {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+      padding: 7px 9px;
+      border-radius: var(--radius);
+      background: var(--soft-2);
+      border: 1px dashed var(--line);
+    }
     .badge-count {
       font-size: 10px;
       font-weight: 700;
@@ -319,6 +328,36 @@ export const dashboardHtml = `<!doctype html>
       overflow-wrap: anywhere;
       font-size: 14px;
       color: #25302c;
+    }
+    .body.is-clamped {
+      max-height: 12rem;
+      overflow: hidden;
+      position: relative;
+    }
+    .body.is-clamped::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 44px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--surface));
+      pointer-events: none;
+    }
+    .inline-toggle {
+      justify-self: start;
+      min-height: 30px;
+      margin-top: 8px;
+      padding: 4px 9px;
+      border-color: var(--line);
+      background: var(--soft-2);
+      color: var(--ink);
+      font-size: 12px;
+    }
+    .inline-toggle:hover {
+      border-color: rgba(13, 127, 115, 0.45);
+      background: var(--accent-soft);
+      color: var(--accent-ink);
     }
     .progress-track {
       height: 9px;
@@ -386,12 +425,12 @@ export const dashboardHtml = `<!doctype html>
     }
     button:active { transform: translateY(1px); }
     button:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
-    .filter-presets button, .route-presets button, .task-actions button, #refresh, #side-toggle, #side-toggle-inline, #panel-open, #project-browse, #project-load, #project-delete {
+    .filter-presets button, .route-presets button, .task-actions button, #refresh, #side-toggle, #side-toggle-inline, #panel-open, #project-browse, #project-load, #project-delete, .inline-toggle {
       border-color: var(--line);
       background: #fff;
       color: var(--ink);
     }
-    .filter-presets button:hover, .route-presets button:hover, .task-actions button:hover, #refresh:hover, #side-toggle:hover, #side-toggle-inline:hover, #panel-open:hover, #project-browse:hover, #project-load:hover {
+    .filter-presets button:hover, .route-presets button:hover, .task-actions button:hover, #refresh:hover, #side-toggle:hover, #side-toggle-inline:hover, #panel-open:hover, #project-browse:hover, #project-load:hover, .inline-toggle:hover {
       border-color: rgba(13, 127, 115, 0.45);
       background: var(--accent-soft);
       color: var(--accent-ink);
@@ -946,6 +985,40 @@ export const dashboardHtml = `<!doctype html>
       return item;
     }
 
+    function appendExpandableBody(parent, text, limit = 1200) {
+      const body = document.createElement("div");
+      body.className = "body";
+      body.textContent = text;
+      parent.append(body);
+      if (text.length <= limit) return body;
+
+      body.classList.add("is-clamped");
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "inline-toggle";
+      toggle.textContent = "Show full";
+      toggle.addEventListener("click", () => {
+        const clamped = body.classList.toggle("is-clamped");
+        toggle.textContent = clamped ? "Show full" : "Collapse";
+      });
+      parent.append(toggle);
+      return body;
+    }
+
+    function appendMoreNotice(container, hiddenCount, label) {
+      if (hiddenCount <= 0) return;
+      const more = document.createElement("div");
+      more.className = "more-inline";
+      more.textContent = "+" + hiddenCount + " more " + label + " in this view";
+      container.append(more);
+    }
+
+    function replaceWithLimitedCards(container, items, renderCard, limit, label) {
+      const visible = items.slice(0, limit);
+      container.replaceChildren(...visible.map(renderCard));
+      appendMoreNotice(container, items.length - visible.length, label);
+    }
+
     function formatTaskNote(note) {
       let line = "- " + formatTimestamp(note.at) + " · " + formatRelativeTime(note.at) + " · " + note.by + ": " + note.body;
       if (note.branch || note.commit) {
@@ -990,9 +1063,6 @@ export const dashboardHtml = `<!doctype html>
       const meta = document.createElement("div");
       meta.className = "meta";
       meta.textContent = task.id + " · " + formatTimestamp(task.updatedAt) + " · " + formatRelativeTime(task.updatedAt) + " · " + task.status + (task.owner ? " · " + task.owner : "");
-      const body = document.createElement("div");
-      body.className = "body";
-      body.textContent = task.title + (task.body ? "\\n" + task.body : "") + (task.notes?.length ? "\\n\\nNotes:\\n" + task.notes.map(formatTaskNote).join("\\n") : "");
       const actions = document.createElement("div");
       actions.className = "task-actions";
 
@@ -1049,7 +1119,12 @@ export const dashboardHtml = `<!doctype html>
       editButton.addEventListener("click", () => fillTaskUpdateForm(task));
 
       actions.append(doneButton, blockedButton, noteButton, reassignButton, editButton);
-      item.append(meta, body);
+      item.append(meta);
+      appendExpandableBody(
+        item,
+        task.title + (task.body ? "\\n" + task.body : "") + (task.notes?.length ? "\\n\\nNotes:\\n" + task.notes.map(formatTaskNote).join("\\n") : ""),
+        900
+      );
       appendAttachmentLinks(item, task.attachments);
       appendAttachmentLinks(item, collectNoteAttachments(task));
       item.append(actions);
@@ -1295,9 +1370,9 @@ export const dashboardHtml = `<!doctype html>
           message.topic +
           (protocolMeta ? " · " + protocolMeta : "");
         const body = document.createElement("div");
-        body.className = "body";
-        body.textContent = message.body + (message.next ? "\\n\\nNext: " + message.next : "");
-        item.append(meta, body);
+        const nextSuffix = message.next && !/\\[NEXT:/i.test(message.body) ? "\\n\\nNext: " + message.next : "";
+        item.append(meta);
+        appendExpandableBody(item, message.body + nextSuffix, 1100);
         appendAttachmentLinks(item, message.attachments);
         const followUpHints = message.followUpHints || [];
         if (followUpHints.length) {
@@ -1328,13 +1403,18 @@ export const dashboardHtml = `<!doctype html>
         setEmpty(agents, "No agents checked in", "Agents appear after register_agent and check_in from an MCP client.");
       }
 
-      protocolWarnings.replaceChildren(...(snapshot.protocolWarnings || []).map((warning) =>
-        card(
-          "task",
-          warning.messageId + " · " + warning.from + " → " + warning.to + " · " + warning.missing.join(", "),
-          warning.message
-        )
-      ));
+      replaceWithLimitedCards(
+        protocolWarnings,
+        snapshot.protocolWarnings || [],
+        (warning) =>
+          card(
+            "task",
+            warning.messageId + " · " + warning.from + " → " + warning.to + " · " + warning.missing.join(", "),
+            warning.message
+          ),
+        12,
+        "protocol warnings"
+      );
       if (!snapshot.protocolWarnings?.length) {
         setEmpty(protocolWarnings, "Protocol clear", "Agent messages include status and next steps.");
       }
@@ -1349,7 +1429,13 @@ export const dashboardHtml = `<!doctype html>
         }
         container.hidden = false;
         if (label?.tagName === "H3") label.hidden = false;
-        container.replaceChildren(...items.map((warning) => card("task", metaFn(warning), warning.message)));
+        replaceWithLimitedCards(
+          container,
+          items,
+          (warning) => card("task", metaFn(warning), warning.message),
+          8,
+          "stale items"
+        );
         return true;
       }
 
