@@ -460,6 +460,10 @@ export const dashboardHtml = `<!doctype html>
     .composer-advanced {
       display: none;
       gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
     }
     .composer-advanced.is-open { display: grid; }
     .composer-toggle {
@@ -501,8 +505,12 @@ export const dashboardHtml = `<!doctype html>
       box-shadow: 0 0 0 3px oklch(0.28 0.04 175);
       background: var(--surface);
     }
-    textarea { resize: vertical; min-height: 72px; }
-    #message { min-height: 44px; }
+    textarea { resize: vertical; min-height: 96px; }
+    #message {
+      min-height: 132px;
+      max-height: 38dvh;
+      line-height: 1.5;
+    }
     button {
       border: 1px solid var(--accent);
       background: var(--accent);
@@ -1309,6 +1317,13 @@ export const dashboardHtml = `<!doctype html>
       } catch {}
     }
 
+    function setComposerAdvancedOpen(open) {
+      const composerToggle = document.getElementById("composer-toggle");
+      const composerAdvanced = document.getElementById("composer-advanced");
+      composerAdvanced?.classList.toggle("is-open", open);
+      if (composerToggle) composerToggle.textContent = open ? "Fewer options" : "More options";
+    }
+
     function applyMessageTemplate(template) {
       const templates = {
         assign: {
@@ -1334,6 +1349,7 @@ export const dashboardHtml = `<!doctype html>
       };
       const next = templates[template];
       if (!next) return;
+      setComposerAdvancedOpen(true);
       messageStatus.value = next.status;
       if (!messageNext.value.trim()) messageNext.value = next.next;
       if (!messageInput.value.trim()) {
@@ -2029,8 +2045,7 @@ export const dashboardHtml = `<!doctype html>
     });
 
     composerToggle?.addEventListener("click", () => {
-      const open = composerAdvanced?.classList.toggle("is-open");
-      composerToggle.textContent = open ? "Fewer options" : "More options";
+      setComposerAdvancedOpen(!composerAdvanced?.classList.contains("is-open"));
     });
 
     document.querySelectorAll("[data-nav]").forEach((button) => {

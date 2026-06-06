@@ -776,6 +776,9 @@ describe("dashboard server", () => {
     expect(html).toContain("data-message-template=\"review\"");
     expect(html).toContain("data-task-owner=\"codex-desktop\"");
     expect(html).toContain("function applyMessageTemplate(template)");
+    expect(html).toContain("function setComposerAdvancedOpen(open)");
+    expect(html).toContain("setComposerAdvancedOpen(true)");
+    expect(html).toContain("min-height: 132px");
     expect(html).toContain("function updateMessageSubmitLabel()");
     expect(html).toContain("applyFilters({ agent: currentUserIdentity()");
     expect(html).toContain("Enter to send");
