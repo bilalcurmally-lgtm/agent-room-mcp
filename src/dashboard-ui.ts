@@ -106,14 +106,14 @@ export const dashboardHtml = `<!doctype html>
     }
     .app-shell {
       display: grid;
-      grid-template-columns: 56px minmax(0, 1fr);
+      grid-template-columns: 72px minmax(0, 1fr);
       min-height: calc(100dvh - 53px);
     }
     body.panel-open-shell .app-shell {
-      grid-template-columns: 56px minmax(0, 1fr) minmax(300px, 360px);
+      grid-template-columns: 72px minmax(0, 1fr) minmax(300px, 360px);
     }
     body.panel-collapsed .app-shell {
-      grid-template-columns: 56px minmax(0, 1fr);
+      grid-template-columns: 72px minmax(0, 1fr);
     }
     .sidebar {
       display: flex;
@@ -613,17 +613,17 @@ export const dashboardHtml = `<!doctype html>
     .drawer-body { padding: 16px; display: grid; gap: 14px; }
     @media (min-width: 900px) {
       body.panel-open-shell:not(.panel-collapsed) .app-shell {
-        grid-template-columns: 56px minmax(0, 1fr) minmax(320px, 380px);
+        grid-template-columns: 72px minmax(0, 1fr) minmax(320px, 380px);
       }
     }
     @media (max-width: 720px) {
       .topbar-field.search-field { flex-basis: 100%; max-width: none; }
       body.panel-open-shell:not(.panel-collapsed) .app-shell {
-        grid-template-columns: 48px minmax(0, 1fr);
+        grid-template-columns: 64px minmax(0, 1fr);
       }
       body.panel-open-shell:not(.panel-collapsed) aside.panel {
         position: fixed;
-        inset: 53px 0 0 48px;
+        inset: 53px 0 0 64px;
         z-index: var(--z-drawer);
         display: flex;
       }
