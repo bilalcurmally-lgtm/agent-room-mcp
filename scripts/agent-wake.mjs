@@ -1,32 +1,48 @@
 /**
- * Agent wake strategy registry. Claude uses prompt hooks; Codex and Cursor rely on
- * the room watcher plus local notifications and inbox files.
+ * Agent wake strategy registry. The dashboard's embedded notifier is the default
+ * delivery path; client-specific hooks/watchers are optional extras.
  */
 
 export const AGENT_WAKE_PROFILES = [
   {
     agent: "claude-opus",
     client: "Claude Code",
-    primary: "hook",
+    primary: "notifier+hook",
     hook: "scripts/room-ping.mjs",
     watcher: "toast+inbox",
-    notes: "UserPromptSubmit and SessionStart hooks inject unread room messages into context."
+    notes: "Global notifier delivers toast/inbox; UserPromptSubmit and SessionStart hooks can also inject unread room messages into context."
   },
   {
     agent: "codex-desktop",
     client: "Codex",
-    primary: "watcher",
+    primary: "notifier",
     hook: null,
     watcher: "toast+inbox",
-    notes: "No prompt hook equivalent documented; run npm run start-watch -- -Wake while Codex is open."
+    notes: "Global notifier delivers toast/inbox while the dashboard is running; external room-watch is optional redundancy."
   },
   {
     agent: "cursor",
     client: "Cursor",
-    primary: "watcher",
+    primary: "notifier",
     hook: null,
     watcher: "toast+inbox",
-    notes: "Use watcher notifications; paste from .wake-inbox-cursor.txt in the room directory if needed."
+    notes: "Use dashboard notifier alerts; paste from .wake-inbox-cursor.txt in the room directory if needed."
+  },
+  {
+    agent: "grok",
+    client: "Grok",
+    primary: "notifier",
+    hook: null,
+    watcher: "toast+inbox",
+    notes: "Register as grok, then rely on the room notifier or watcher inbox file."
+  },
+  {
+    agent: "antigravity",
+    client: "Antigravity",
+    primary: "notifier",
+    hook: null,
+    watcher: "toast+inbox",
+    notes: "Register as antigravity, then rely on the room notifier or watcher inbox file."
   }
 ];
 

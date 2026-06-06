@@ -3,7 +3,7 @@ param(
   [int]$Port = 4777,
   [switch]$NoOpen,
   [switch]$SkipBuild,
-  [switch]$NoWatch,
+  [switch]$WithWatch,
   [switch]$DryRun
 )
 
@@ -50,13 +50,13 @@ $watchScript = Join-Path $PSScriptRoot "start-room-watch.ps1"
 
 if ($DryRun) {
   Write-Output "Dashboard: powershell -File $dashboardScript -Room $Room -Port $Port$(if ($NoOpen) { ' -NoOpen' }) -SkipBuild"
-  if (-not $NoWatch) {
+  if ($WithWatch) {
     Write-Output "Watcher: powershell -File $watchScript -Room $Room -Once (background loop via Start-Process)"
   }
   exit 0
 }
 
-if (-not $NoWatch) {
+if ($WithWatch) {
   Start-Process powershell -ArgumentList @(
     "-NoProfile",
     "-ExecutionPolicy",
@@ -68,7 +68,7 @@ if (-not $NoWatch) {
   ) -WorkingDirectory $repoRoot -WindowStyle Minimized | Out-Null
 }
 
-Write-RoomLauncherMarker -TargetRoom $Room -Dashboard $true -Watch (-not $NoWatch)
+Write-RoomLauncherMarker -TargetRoom $Room -Dashboard $true -Watch $WithWatch
 
 $dashboardArgs = @("-Room", $Room, "-Port", [string]$Port, "-SkipBuild")
 if ($NoOpen) {

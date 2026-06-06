@@ -6,34 +6,35 @@ export const dashboardHtml = `<!doctype html>
   <title>Agent Room</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f7f8f5;
-      --surface: #ffffff;
-      --surface-raised: #fbfcfa;
-      --ink: #151a18;
-      --muted: #68716d;
-      --faint: #8e9893;
-      --line: #d9dfdc;
-      --soft: #eef2ef;
-      --soft-2: #f5f7f4;
-      --accent: #0d7f73;
-      --accent-ink: #075c54;
-      --accent-soft: #e2f6f2;
-      --blue: #2458d3;
-      --blue-soft: #e8eefc;
-      --warn: #b45309;
-      --warn-soft: #fff3df;
-      --danger: #b42318;
-      --danger-soft: #fff0ee;
-      --done: #167642;
-      --partial: #a86b00;
-      --todo: #65717f;
-      --shadow: 0 18px 50px rgba(29, 38, 34, 0.08);
-      --shadow-soft: 0 8px 24px rgba(29, 38, 34, 0.06);
-      --radius: 8px;
+      color-scheme: dark;
+      --bg: oklch(0.17 0.012 255);
+      --surface: oklch(0.21 0.014 255);
+      --surface-raised: oklch(0.24 0.016 255);
+      --ink: oklch(0.94 0.01 255);
+      --muted: oklch(0.72 0.02 255);
+      --faint: oklch(0.58 0.02 255);
+      --line: oklch(0.32 0.018 255);
+      --soft: oklch(0.26 0.014 255);
+      --soft-2: oklch(0.23 0.013 255);
+      --accent: oklch(0.62 0.11 175);
+      --accent-ink: oklch(0.78 0.09 175);
+      --accent-soft: oklch(0.28 0.04 175);
+      --blue: oklch(0.68 0.14 255);
+      --blue-soft: oklch(0.26 0.04 255);
+      --warn: oklch(0.75 0.14 75);
+      --warn-soft: oklch(0.28 0.05 75);
+      --danger: oklch(0.65 0.18 25);
+      --danger-soft: oklch(0.26 0.05 25);
+      --done: oklch(0.72 0.14 155);
+      --partial: oklch(0.74 0.12 85);
+      --todo: oklch(0.62 0.02 255);
+      --radius: 10px;
+      --z-sticky: 10;
+      --z-drawer: 40;
+      --z-toast: 50;
     }
 
     * { box-sizing: border-box; }
@@ -41,136 +42,174 @@ export const dashboardHtml = `<!doctype html>
     body {
       margin: 0;
       min-height: 100dvh;
-      font-family: "IBM Plex Sans", system-ui, sans-serif;
-      background:
-        linear-gradient(180deg, rgba(13, 127, 115, 0.06), transparent 260px),
-        var(--bg);
+      font-family: Inter, system-ui, sans-serif;
+      background: var(--bg);
       color: var(--ink);
-      line-height: 1.45;
+      line-height: 1.5;
     }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgba(21, 26, 24, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(21, 26, 24, 0.035) 1px, transparent 1px);
-      background-size: 32px 32px;
-      mask-image: linear-gradient(180deg, black, transparent 48%);
-    }
-    header {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-      align-items: end;
-      padding: 14px;
-      border-bottom: 1px solid rgba(217, 223, 220, 0.82);
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(18px);
+    header.topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
       position: sticky;
       top: 0;
-      z-index: 2;
+      z-index: var(--z-sticky);
     }
     .brand {
-      display: grid;
-      gap: 0;
-      align-self: center;
-      min-width: 154px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 120px;
+      margin-right: auto;
     }
     .brand strong {
-      font-size: 22px;
-      line-height: 1;
-      letter-spacing: -0.01em;
+      font-size: 1.125rem;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
       font-weight: 600;
     }
     .brand span {
-      margin-top: 5px;
-      font-size: 11px;
+      font-size: 0.75rem;
       color: var(--faint);
       font-family: "IBM Plex Mono", monospace;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
     }
-    .toolbar {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
+    .topbar-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       min-width: 0;
     }
-    .toolbar-actions {
+    .topbar-field label {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .topbar-field.project-field { flex: 1 1 180px; max-width: 280px; }
+    .topbar-field.search-field { flex: 2 1 220px; max-width: 420px; }
+    .topbar-actions {
       display: flex;
       gap: 8px;
       align-items: center;
-      justify-content: flex-start;
       flex-wrap: wrap;
     }
     label {
       display: grid;
-      gap: 5px;
-      font-size: 11px;
-      font-weight: 600;
+      gap: 4px;
+      font-size: 0.8125rem;
+      font-weight: 500;
       color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
     }
-    main.layout {
+    .app-shell {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-      padding: 14px;
-      max-width: 1560px;
-      margin: 0 auto;
-      align-items: start;
+      grid-template-columns: 56px minmax(0, 1fr);
+      min-height: calc(100dvh - 53px);
     }
-    body.panel-collapsed main.layout { grid-template-columns: 1fr; max-width: 1180px; }
-    section, aside.panel {
-      background: rgba(255, 255, 255, 0.92);
-      border: 1px solid rgba(217, 223, 220, 0.9);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-soft);
+    body.panel-open-shell .app-shell {
+      grid-template-columns: 56px minmax(0, 1fr) minmax(300px, 360px);
     }
-    section { padding: 0; overflow: hidden; }
-    aside.panel {
-      padding: 0;
+    body.panel-collapsed .app-shell {
+      grid-template-columns: 56px minmax(0, 1fr);
+    }
+    .sidebar {
       display: flex;
       flex-direction: column;
+      gap: 4px;
+      padding: 10px 6px;
+      border-right: 1px solid var(--line);
+      background: var(--soft-2);
+    }
+    .sidebar .nav-btn {
+      display: grid;
+      gap: 2px;
+      justify-items: center;
+      padding: 8px 4px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      min-height: auto;
+      cursor: pointer;
+      transition: background 0.18s ease-out, color 0.18s ease-out, border-color 0.18s ease-out;
+    }
+    .sidebar .nav-btn:hover {
+      background: var(--soft);
+      color: var(--ink);
+      border-color: var(--line);
+    }
+    .sidebar .nav-btn.active {
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+      border-color: oklch(0.38 0.05 175);
+    }
+    .sidebar .nav-btn .nav-count {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.625rem;
+      padding: 1px 5px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--faint);
+    }
+    .sidebar .nav-btn.active .nav-count { background: oklch(0.32 0.04 175); color: var(--accent-ink); }
+    .main-column {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
       overflow: hidden;
     }
-    body.panel-collapsed aside.panel { display: none; }
+    aside.panel {
+      display: none;
+      flex-direction: column;
+      border-left: 1px solid var(--line);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    body.panel-open-shell:not(.panel-collapsed) aside.panel { display: flex; }
+    section.main-feed {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--line);
+    }
     .panel-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 14px 16px;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--line);
       background: var(--surface-raised);
     }
     .panel-head h2 {
       margin: 0;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--ink);
     }
-    .panel-scroll { overflow: auto; padding: 10px; display: grid; gap: 8px; }
+    .panel-scroll { overflow: auto; padding: 12px; display: grid; gap: 10px; flex: 1; }
     .panel-section {
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: var(--surface);
+      background: var(--soft-2);
       overflow: hidden;
     }
+    .panel-section[hidden] { display: none !important; }
     .panel-section > summary {
       list-style: none;
       cursor: pointer;
-      min-height: 42px;
+      min-height: 40px;
       padding: 10px 12px;
-      font-size: 12px;
+      font-size: 0.8125rem;
       font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--muted);
+      color: var(--ink);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -180,93 +219,126 @@ export const dashboardHtml = `<!doctype html>
     }
     .panel-section > summary::-webkit-details-marker { display: none; }
     .panel-section > summary::after {
-      content: "+";
-      width: 20px;
-      height: 20px;
-      display: inline-grid;
-      place-items: center;
-      border-radius: 999px;
-      background: var(--soft);
-      color: var(--accent-ink);
-      font-family: "IBM Plex Mono", monospace;
+      content: "▾";
+      font-size: 0.75rem;
+      color: var(--faint);
     }
-    .panel-section[open] > summary::after { content: "−"; background: var(--accent-soft); }
-    .panel-section[open] > summary { color: var(--ink); border-bottom: 1px solid var(--line); }
+    .panel-section:not([open]) > summary::after { content: "▸"; }
+    .panel-section[open] > summary { border-bottom: 1px solid var(--line); }
     .panel-body { padding: 12px; display: grid; gap: 12px; }
     .panel-body .stack { gap: 8px; }
-    .main-feed { display: grid; gap: 0; }
+    .panel-body h3 {
+      margin: 4px 0 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--faint);
+    }
+    details.feed-section {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
     details.feed-section > summary.section-block {
       list-style: none;
-      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 18px 18px 14px;
+      padding: 14px 16px 10px;
       border-bottom: 1px solid var(--line);
       background: var(--surface-raised);
+      cursor: default;
     }
     details.feed-section > summary.section-block::-webkit-details-marker { display: none; }
     .section-block h2 {
       margin: 0;
-      font-size: 18px;
-      line-height: 1.1;
+      font-size: 1rem;
+      line-height: 1.2;
       font-weight: 600;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.02em;
       color: var(--ink);
+      text-wrap: balance;
+    }
+    .feed-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--soft-2);
     }
     .header-progress {
-      min-height: 36px;
+      min-height: 32px;
       font-family: "IBM Plex Mono", monospace;
-      font-size: 11px;
+      font-size: 0.6875rem;
       color: var(--accent-ink);
-      padding: 7px 10px;
-      border: 1px solid rgba(13, 127, 115, 0.24);
+      padding: 6px 10px;
+      border: 1px solid oklch(0.38 0.05 175);
       border-radius: 999px;
       background: var(--accent-soft);
       cursor: pointer;
       white-space: nowrap;
     }
-    .header-progress:hover { border-color: rgba(13, 127, 115, 0.48); background: #d3f0eb; }
+    .header-progress:hover { border-color: var(--accent); background: oklch(0.30 0.05 175); }
     .progress-compact { display: grid; gap: 8px; }
     .progress-compact .meta { margin: 0; }
-    h3 {
-      margin: 2px 0 0;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--faint);
-    }
     .feed {
       display: grid;
+      gap: 8px;
+      padding: 12px 16px;
+      overflow: auto;
+      flex: 1;
+      align-content: start;
+    }
+    .feed-project-group {
+      display: grid;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .feed-project-group:first-child { margin-top: 0; }
+    .feed-project-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 10px;
-      padding: 14px;
-      background: linear-gradient(180deg, #fbfcfa, #f7f8f5);
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--soft);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .feed-project-head strong {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .feed-project-head span {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.6875rem;
+      color: var(--faint);
+    }
+    .feed-project-head button {
+      min-height: 28px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+    }
+    .composer-hint {
+      font-size: 0.75rem;
+      color: var(--faint);
+      margin: 0;
     }
     .stack { display: grid; gap: 10px; }
     .message, .task, .decision, .agent, .empty, .progress-panel {
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 13px 14px;
-      background: var(--surface);
+      padding: 12px 14px;
+      background: var(--soft-2);
     }
-    .message {
-      position: relative;
-      padding-left: 18px;
-      box-shadow: 0 1px 0 rgba(21, 26, 24, 0.03);
-    }
-    .message::before {
-      content: "";
-      position: absolute;
-      top: 12px;
-      bottom: 12px;
-      left: 8px;
-      width: 3px;
-      border-radius: 999px;
-      background: var(--accent);
-    }
-    .task, .decision, .agent { background: #fff; }
+    .message { background: var(--surface); }
+    .task, .decision, .agent { background: var(--soft-2); }
     .empty {
       display: grid;
       gap: 2px;
@@ -289,22 +361,21 @@ export const dashboardHtml = `<!doctype html>
       border: 1px dashed var(--line);
     }
     .badge-count {
-      font-size: 10px;
-      font-weight: 700;
+      font-size: 0.625rem;
+      font-weight: 600;
       padding: 2px 7px;
       border-radius: 999px;
       background: var(--accent-soft);
       color: var(--accent-ink);
-      border: 1px solid rgba(13, 127, 115, 0.22);
+      border: 1px solid oklch(0.38 0.05 175);
       font-family: "IBM Plex Mono", monospace;
-      letter-spacing: 0;
     }
-    .badge-count.warn { background: var(--warn-soft); color: var(--warn); border-color: #fed7aa; }
-    #side-toggle, #panel-open, #side-toggle-inline {
+    .badge-count.warn { background: var(--warn-soft); color: var(--warn); border-color: oklch(0.45 0.08 75); }
+    #side-toggle, #panel-open, #side-toggle-inline, #filter-drawer-open {
       border-color: var(--line);
-      background: #fff;
+      background: var(--soft-2);
       color: var(--ink);
-      font-size: 12px;
+      font-size: 0.8125rem;
       padding: 8px 11px;
     }
     #panel-open {
@@ -312,8 +383,7 @@ export const dashboardHtml = `<!doctype html>
       position: fixed;
       right: 16px;
       bottom: 16px;
-      z-index: 3;
-      box-shadow: var(--shadow);
+      z-index: var(--z-toast);
     }
     body.panel-collapsed #panel-open { display: inline-block; }
     .meta {
@@ -326,8 +396,8 @@ export const dashboardHtml = `<!doctype html>
     .body {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      font-size: 14px;
-      color: #25302c;
+      font-size: 0.875rem;
+      color: var(--ink);
     }
     .body.is-clamped {
       max-height: 12rem;
@@ -341,7 +411,7 @@ export const dashboardHtml = `<!doctype html>
       right: 0;
       bottom: 0;
       height: 44px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--surface));
+      background: linear-gradient(180deg, transparent, var(--surface));
       pointer-events: none;
     }
     .inline-toggle {
@@ -372,66 +442,93 @@ export const dashboardHtml = `<!doctype html>
     .progress-item { display: grid; gap: 4px; padding: 9px 10px; border-radius: var(--radius); background: var(--soft-2); border: 1px solid transparent; }
     .progress-item .header-row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
     .progress-item .title { font-size: 13px; font-weight: 600; }
-    .pill { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
-    .pill.done { color: var(--done); border-color: #9bd8b4; background: #edf9f1; }
-    .pill.partial { color: var(--partial); border-color: #f6cf76; background: #fff8e6; }
-    .pill.todo { color: var(--todo); border-color: #cbd5e1; background: #f8fafc; }
+    .pill { font-size: 0.6875rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
+    .pill.done { color: var(--done); border-color: oklch(0.45 0.08 155); background: oklch(0.26 0.04 155); }
+    .pill.partial { color: var(--partial); border-color: oklch(0.45 0.07 85); background: oklch(0.28 0.04 85); }
+    .pill.todo { color: var(--todo); border-color: var(--line); background: var(--soft); }
     .follow-up { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .follow-up span { font-size: 11px; padding: 4px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); border: 1px solid #c7d7fb; font-family: "IBM Plex Mono", monospace; }
-    .stale-warn .message, .stale-warn .task { border-color: #f7c06c; background: var(--warn-soft); }
+    .follow-up span { font-size: 0.6875rem; padding: 4px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); border: 1px solid oklch(0.38 0.06 255); font-family: "IBM Plex Mono", monospace; }
+    .stale-warn .message, .stale-warn .task { border-color: oklch(0.55 0.1 75); background: var(--warn-soft); }
     .composer {
       display: grid;
-      gap: 9px;
-      margin-top: 0;
-      padding: 14px;
+      gap: 8px;
+      padding: 12px 16px 16px;
       border-top: 1px solid var(--line);
-      background: #fff;
+      background: var(--surface-raised);
     }
-    #message-form {
-      border-top: 1px solid var(--line);
-      background: #fff;
+    #message-form { margin: 0; }
+    .composer-advanced {
+      display: none;
+      gap: 8px;
     }
+    .composer-advanced.is-open { display: grid; }
+    .composer-toggle {
+      justify-self: start;
+      min-height: 30px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      border-color: var(--line);
+      background: var(--soft);
+      color: var(--muted);
+    }
+    .composer-toggle:hover { color: var(--ink); border-color: var(--accent); }
+    .task-inline-form {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .task-inline-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .route-presets, .filter-presets, .template-presets, .task-owner-presets, .task-actions { display: flex; gap: 7px; flex-wrap: wrap; }
     textarea, input, select, button { font: inherit; }
     textarea, input, select {
       width: 100%;
-      min-height: 40px;
+      min-height: 38px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 9px 10px;
-      background: #fff;
+      padding: 8px 10px;
+      background: var(--soft-2);
       color: var(--ink);
-      font-size: 14px;
-      transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+      font-size: 0.875rem;
+      transition: border-color 0.18s ease-out, box-shadow 0.18s ease-out;
     }
     textarea:focus, input:focus, select:focus {
       outline: none;
-      border-color: rgba(13, 127, 115, 0.68);
-      box-shadow: 0 0 0 3px rgba(13, 127, 115, 0.12);
-      background: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px oklch(0.28 0.04 175);
+      background: var(--surface);
     }
-    textarea { resize: vertical; min-height: 82px; }
+    textarea { resize: vertical; min-height: 72px; }
+    #message { min-height: 44px; }
     button {
       border: 1px solid var(--accent);
       background: var(--accent);
-      color: #fff;
+      color: oklch(0.98 0.01 175);
       border-radius: var(--radius);
-      min-height: 40px;
-      padding: 9px 12px;
+      min-height: 38px;
+      padding: 8px 12px;
       cursor: pointer;
       font-weight: 600;
-      font-size: 14px;
-      transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+      font-size: 0.875rem;
+      transition: background 0.18s ease-out, border-color 0.18s ease-out, transform 0.12s ease-out;
     }
     button:active { transform: translateY(1px); }
-    button:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
-    .filter-presets button, .route-presets button, .template-presets button, .task-owner-presets button, .task-actions button, #refresh, #side-toggle, #side-toggle-inline, #panel-open, #project-browse, #project-load, #project-delete, .inline-toggle {
+    button:hover { background: oklch(0.56 0.11 175); border-color: oklch(0.56 0.11 175); }
+    .filter-presets button, .route-presets button, .template-presets button, .task-owner-presets button, .task-actions button, #refresh, #side-toggle, #side-toggle-inline, #panel-open, #project-browse, #project-load, #project-delete, .inline-toggle, #filter-drawer-open, .composer-toggle {
       border-color: var(--line);
-      background: #fff;
+      background: var(--soft-2);
       color: var(--ink);
     }
-    .filter-presets button:hover, .route-presets button:hover, .template-presets button:hover, .task-owner-presets button:hover, .task-actions button:hover, #refresh:hover, #side-toggle:hover, #side-toggle-inline:hover, #panel-open:hover, #project-browse:hover, #project-load:hover, .inline-toggle:hover {
-      border-color: rgba(13, 127, 115, 0.45);
+    .filter-presets button:hover, .route-presets button:hover, .template-presets button:hover, .task-owner-presets button:hover, .task-actions button:hover, #refresh:hover, #side-toggle:hover, #side-toggle-inline:hover, #panel-open:hover, #project-browse:hover, #project-load:hover, .inline-toggle:hover, #filter-drawer-open:hover, .composer-toggle:hover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent-ink);
+    }
+    .filter-presets button[data-active="true"] {
+      border-color: var(--accent);
       background: var(--accent-soft);
       color: var(--accent-ink);
     }
@@ -465,17 +562,17 @@ export const dashboardHtml = `<!doctype html>
       background: var(--soft-2);
       font-size: 13px;
     }
-    .workspace-banner.warn { border-color: #f7c06c; background: var(--warn-soft); color: #7c2d12; }
-    .workspace-banner.ok { border-color: #b9ded8; background: var(--accent-soft); color: var(--accent-ink); }
+    .workspace-banner.warn { border-color: oklch(0.55 0.1 75); background: var(--warn-soft); color: var(--warn); }
+    .workspace-banner.ok { border-color: oklch(0.42 0.06 175); background: var(--accent-soft); color: var(--accent-ink); }
     .workspace-banner strong { font-weight: 700; }
     .workspace-banner button { min-height: 32px; font-size: 12px; padding: 5px 9px; }
     .workspace-actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .attachment-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .attachment-list a {
-      font-size: 12px;
+      font-size: 0.75rem;
       padding: 5px 8px;
       border-radius: 999px;
-      border: 1px solid #c7d7fb;
+      border: 1px solid oklch(0.38 0.06 255);
       background: var(--blue-soft);
       color: var(--blue);
       text-decoration: none;
@@ -485,26 +582,43 @@ export const dashboardHtml = `<!doctype html>
     .attachment-pending { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; font-size: 12px; color: var(--muted); }
     .attachment-pending span { padding: 4px 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--soft-2); }
     .attachment-pending button { min-height: 24px; font-size: 11px; padding: 1px 6px; margin-left: 4px; }
-    @media (min-width: 760px) {
-      header { grid-template-columns: auto minmax(0, 1fr); }
-      .toolbar { grid-template-columns: 1.2fr 1.6fr repeat(4, minmax(104px, 0.75fr)); }
-      .toolbar-actions { grid-column: 2; justify-content: space-between; }
-      main.layout { padding: 18px; gap: 18px; }
+    .filter-drawer {
+      border: none;
+      padding: 0;
+      margin: 0;
+      max-width: min(400px, 100vw);
+      width: 100%;
+      height: 100%;
+      max-height: 100dvh;
+      background: var(--surface);
+      color: var(--ink);
     }
-    @media (min-width: 1080px) {
-      header { grid-template-columns: auto minmax(0, 1fr) auto; padding: 16px 18px; }
-      .toolbar-actions { grid-column: auto; justify-content: flex-end; }
-      main.layout { grid-template-columns: minmax(0, 1fr) 380px; }
-      aside.panel {
-        position: sticky;
-        top: 92px;
-        max-height: calc(100dvh - 110px);
+    .filter-drawer::backdrop { background: oklch(0.1 0.01 255 / 0.55); }
+    .drawer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .drawer-head h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .drawer-body { padding: 16px; display: grid; gap: 14px; }
+    @media (min-width: 900px) {
+      body.panel-open-shell:not(.panel-collapsed) .app-shell {
+        grid-template-columns: 56px minmax(0, 1fr) minmax(320px, 380px);
       }
-      .feed { padding: 16px; gap: 12px; }
-      .composer { padding: 16px; }
     }
-    @media (min-width: 1380px) {
-      main.layout { grid-template-columns: minmax(0, 1fr) 420px; }
+    @media (max-width: 720px) {
+      .topbar-field.search-field { flex-basis: 100%; max-width: none; }
+      body.panel-open-shell:not(.panel-collapsed) .app-shell {
+        grid-template-columns: 48px minmax(0, 1fr);
+      }
+      body.panel-open-shell:not(.panel-collapsed) aside.panel {
+        position: fixed;
+        inset: 53px 0 0 48px;
+        z-index: var(--z-drawer);
+        display: flex;
+      }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -514,71 +628,89 @@ export const dashboardHtml = `<!doctype html>
     }
   </style>
 </head>
-<body>
-  <header>
+<body class="panel-open-shell">
+  <header class="topbar">
     <div class="brand">
       <strong>Agent Room</strong>
       <span>Control room</span>
     </div>
-    <div class="toolbar">
-      <label>View <select id="project"></select></label>
-      <label>Search <input id="search" placeholder="Messages, tasks, decisions" /></label>
-      <label>You <input id="current-user" placeholder="user" title="Your room identity for the Mine filter" /></label>
-      <label>Agent <input id="filter-agent" placeholder="codex, claude-opus" /></label>
-      <label>Since <input id="filter-since" type="date" /></label>
-      <label>Until <input id="filter-until" type="date" /></label>
+    <div class="topbar-field project-field">
+      <label for="project">Project</label>
+      <select id="project"></select>
     </div>
-    <div class="toolbar-actions">
-      <div class="filter-presets" aria-label="Filter presets">
-        <button type="button" data-filter-preset="today">Today</button>
-        <button type="button" data-filter-preset="week">Week</button>
-        <button type="button" data-filter-preset="mine">Mine</button>
-        <button type="button" data-filter-preset="review">Review</button>
-        <button type="button" data-filter-preset="clear">Clear</button>
-      </div>
+    <div class="topbar-field search-field">
+      <label for="search">Search</label>
+      <input id="search" placeholder="Messages, tasks, decisions" />
+    </div>
+    <div class="topbar-actions">
+      <button id="filter-drawer-open" type="button">Filters</button>
       <button id="header-progress" type="button" class="header-progress" title="Jump to roadmap" hidden>0% roadmap</button>
-      <button id="side-toggle" type="button" title="Toggle room panel">Panel</button>
+      <button id="side-toggle" type="button" title="Toggle room panel" aria-pressed="true">Hide panel</button>
       <button id="refresh" type="button" title="Refresh">↻</button>
       <span id="room-clock">Room time</span>
     </div>
   </header>
-  <main class="layout">
-    <section class="main-feed">
-      <details class="feed-section" id="feed-section" open>
-        <summary class="section-block"><h2>Room Feed</h2><span class="meta" id="feed-summary"></span></summary>
-        <div id="feed" class="feed"></div>
-        <div id="workspace-banner" class="workspace-banner warn" hidden></div>
-        <form id="message-form" class="composer">
-        <div class="composer-row">
-          <label>Route to <input id="message-to" value="all" /></label>
-          <div class="route-presets" aria-label="Route presets">
-            <button type="button" data-route-preset="all">To all</button>
-            <button type="button" data-route-preset="codex-desktop">To Codex</button>
-            <button type="button" data-route-preset="claude-opus">To Claude</button>
+  <div class="app-shell">
+    <nav class="sidebar" aria-label="Room sections">
+      <button type="button" class="nav-btn active" data-nav="overview" title="Overview">◎<span>Feed</span></button>
+      <button type="button" class="nav-btn" data-nav="tasks" title="Tasks">☑<span>Tasks</span><span class="nav-count" id="nav-tasks-count">0</span></button>
+      <button type="button" class="nav-btn" data-nav="decisions" title="Decisions">◆<span>Decide</span></button>
+      <button type="button" class="nav-btn" data-nav="alerts" title="Alerts">!<span>Alerts</span><span class="nav-count" id="nav-alerts-count" hidden>0</span></button>
+      <button type="button" class="nav-btn" data-nav="notifications" title="Notifications">◉<span>Notify</span></button>
+      <button type="button" class="nav-btn" data-nav="projects" title="Projects">⌂<span>Projects</span></button>
+      <button type="button" class="nav-btn" data-nav="roadmap" title="Roadmap">↗<span>Roadmap</span></button>
+    </nav>
+    <main class="main-column">
+      <section class="main-feed">
+        <details class="feed-section" id="feed-section" open>
+          <summary class="section-block"><h2>Room Feed</h2><span class="meta" id="feed-summary"></span></summary>
+          <div class="feed-chips filter-presets" aria-label="Filter presets">
+            <button type="button" data-filter-preset="today">Today</button>
+            <button type="button" data-filter-preset="week">Week</button>
+            <button type="button" data-filter-preset="mine">Mine</button>
+            <button type="button" data-filter-preset="review">Review</button>
+            <button type="button" data-filter-preset="clear">Clear</button>
           </div>
-        </div>
-        <div class="template-presets" aria-label="Message templates">
-          <button type="button" data-message-template="assign">Assign work</button>
-          <button type="button" data-message-template="review">Request review</button>
-          <button type="button" data-message-template="status">Ask status</button>
-          <button type="button" data-message-template="blocked">Report blocker</button>
-        </div>
-        <select id="message-status">
-          <option value="">Status (optional)</option>
-          <option value="planning">planning</option>
-          <option value="implementing">implementing</option>
-          <option value="reviewing">reviewing</option>
-          <option value="blocked">blocked</option>
-        </select>
-        <input id="message-phase" placeholder="Phase (optional), e.g. C1 or review" />
-        <textarea id="message-next" rows="2" placeholder="Next step (optional)"></textarea>
-        <textarea id="message" rows="3" placeholder="Tell the room... or use the structured fields above"></textarea>
-        <label>Attach files <input id="message-files" type="file" multiple accept="text/*,image/*,.pdf,.json,.zip" /></label>
-        <div id="message-attachments-pending" class="attachment-pending" hidden></div>
-        <button id="message-submit" type="submit">Tell all agents</button>
-        </form>
-      </details>
-    </section>
+          <div id="workspace-banner" class="workspace-banner warn" hidden></div>
+          <div id="feed" class="feed"></div>
+          <form id="message-form" class="composer">
+            <div class="template-presets" aria-label="Message templates">
+              <button type="button" data-message-template="assign">Assign work</button>
+              <button type="button" data-message-template="review">Request review</button>
+              <button type="button" data-message-template="status">Ask status</button>
+              <button type="button" data-message-template="blocked">Report blocker</button>
+            </div>
+            <textarea id="message" rows="2" placeholder="Tell the room... use @all, @codex, @grok, @claude"></textarea>
+            <p class="composer-hint" id="composer-route-hint">Enter to send · Shift+Enter for a new line · @mentions route alerts</p>
+            <button type="button" class="composer-toggle" id="composer-toggle">More options</button>
+            <div class="composer-advanced" id="composer-advanced">
+              <div class="composer-row">
+                <label>Route to <input id="message-to" value="all" /></label>
+                <div class="route-presets" aria-label="Route presets">
+                  <button type="button" data-route-preset="all">To all</button>
+                  <button type="button" data-route-preset="codex-desktop">To Codex</button>
+                  <button type="button" data-route-preset="claude-opus">To Claude</button>
+                  <button type="button" data-route-preset="grok">To Grok</button>
+                  <button type="button" data-route-preset="antigravity">To Antigravity</button>
+                </div>
+              </div>
+              <select id="message-status">
+                <option value="">Status (optional)</option>
+                <option value="planning">planning</option>
+                <option value="implementing">implementing</option>
+                <option value="reviewing">reviewing</option>
+                <option value="blocked">blocked</option>
+              </select>
+              <input id="message-phase" placeholder="Phase (optional), e.g. C1 or review" />
+              <textarea id="message-next" rows="2" placeholder="Next step (optional)"></textarea>
+              <label>Attach files <input id="message-files" type="file" multiple accept="text/*,image/*,.pdf,.json,.zip" /></label>
+            </div>
+            <div id="message-attachments-pending" class="attachment-pending" hidden></div>
+            <button id="message-submit" type="submit">Tell all agents</button>
+          </form>
+        </details>
+      </section>
+    </main>
     <aside class="panel" id="side-panel">
       <div class="panel-head">
         <h2>Room panel</h2>
@@ -593,7 +725,7 @@ export const dashboardHtml = `<!doctype html>
             <div id="agents" class="stack"></div>
           </div>
         </details>
-        <details class="panel-section" id="section-roadmap">
+        <details class="panel-section" id="section-roadmap" hidden>
           <summary>Roadmap <span id="roadmap-badge" class="badge-count">0%</span></summary>
           <div class="panel-body progress-compact">
             <div id="progress-summary" class="meta">Loading progress...</div>
@@ -603,7 +735,15 @@ export const dashboardHtml = `<!doctype html>
             <ul id="progress-items" class="progress-list"></ul>
           </div>
         </details>
-        <details class="panel-section" id="section-alerts">
+        <details class="panel-section" id="section-notifications" hidden>
+          <summary>Notifications <span id="notifications-badge" class="badge-count">live</span></summary>
+          <div class="panel-body">
+            <div id="notifications-status" class="stack"></div>
+            <div id="notifications-agents" class="stack"></div>
+            <div id="notifications-recent" class="stack"></div>
+          </div>
+        </details>
+        <details class="panel-section" id="section-alerts" hidden>
           <summary>Alerts <span id="alerts-badge" class="badge-count" hidden>0</span></summary>
           <div class="panel-body">
             <h3>Protocol</h3>
@@ -622,7 +762,7 @@ export const dashboardHtml = `<!doctype html>
             </form>
           </div>
         </details>
-        <details class="panel-section" id="section-tasks">
+        <details class="panel-section" id="section-tasks" hidden>
           <summary>Tasks <span id="tasks-badge" class="badge-count">0</span></summary>
           <div class="panel-body">
             <div id="tasks" class="stack"></div>
@@ -654,7 +794,7 @@ export const dashboardHtml = `<!doctype html>
             </form>
           </div>
         </details>
-        <details class="panel-section" id="section-projects">
+        <details class="panel-section" id="section-projects" hidden>
           <summary>Projects</summary>
           <div class="panel-body">
             <div id="project-records" class="stack"></div>
@@ -671,7 +811,7 @@ export const dashboardHtml = `<!doctype html>
             </form>
           </div>
         </details>
-        <details class="panel-section" id="section-decisions">
+        <details class="panel-section" id="section-decisions" hidden>
           <summary>Decisions</summary>
           <div class="panel-body">
             <div id="decisions" class="stack"></div>
@@ -685,7 +825,19 @@ export const dashboardHtml = `<!doctype html>
         </details>
       </div>
     </aside>
-  </main>
+  </div>
+  <dialog id="filter-drawer" class="filter-drawer">
+    <div class="drawer-head">
+      <h2>Filters</h2>
+      <button type="button" id="filter-drawer-close">Close</button>
+    </div>
+    <div class="drawer-body">
+      <label>You <input id="current-user" placeholder="user" title="Your room identity for the Mine filter" /></label>
+      <label>Agent <input id="filter-agent" placeholder="codex, claude-opus" /></label>
+      <label>Since <input id="filter-since" type="date" /></label>
+      <label>Until <input id="filter-until" type="date" /></label>
+    </div>
+  </dialog>
   <button id="panel-open" type="button">Open panel</button>
   <script>
     let selectedProject = "all";
@@ -769,6 +921,7 @@ export const dashboardHtml = `<!doctype html>
 
     function setPanelOpen(open) {
       document.body.classList.toggle("panel-collapsed", !open);
+      document.body.classList.toggle("panel-open-shell", open);
       sideToggle.textContent = open ? "Hide panel" : "Panel";
       sideToggle.setAttribute("aria-pressed", open ? "true" : "false");
       try {
@@ -781,8 +934,67 @@ export const dashboardHtml = `<!doctype html>
       try {
         open = localStorage.getItem(PANEL_KEY) !== "0";
       } catch {}
-      if (window.matchMedia("(max-width: 960px)").matches) open = true;
+      if (window.matchMedia("(max-width: 720px)").matches) open = true;
       setPanelOpen(open);
+    }
+
+    const navMap = {
+      overview: "section-overview",
+      tasks: "section-tasks",
+      decisions: "section-decisions",
+      alerts: "section-alerts",
+      notifications: "section-notifications",
+      projects: "section-projects",
+      roadmap: "section-roadmap"
+    };
+    const notificationsStatus = document.getElementById("notifications-status");
+    const notificationsAgents = document.getElementById("notifications-agents");
+    const notificationsRecent = document.getElementById("notifications-recent");
+    const composerRouteHint = document.getElementById("composer-route-hint");
+
+    function setActiveNav(nav) {
+      document.querySelectorAll("[data-nav]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.nav === nav);
+      });
+      Object.entries(navMap).forEach(([key, id]) => {
+        const section = document.getElementById(id);
+        if (!section) return;
+        const active = key === nav;
+        section.hidden = !active;
+        if (active) section.open = true;
+      });
+      if (!document.body.classList.contains("panel-collapsed")) setPanelOpen(true);
+    }
+
+    function closeTaskInlineForms(scope) {
+      scope.querySelectorAll(".task-inline-form").forEach((form) => form.remove());
+    }
+
+    function appendTaskInlineForm(parent, task, config) {
+      closeTaskInlineForms(parent);
+      const form = document.createElement("div");
+      form.className = "task-inline-form";
+      const input = document.createElement("textarea");
+      input.rows = 2;
+      input.placeholder = config.placeholder;
+      input.value = config.value || "";
+      const actions = document.createElement("div");
+      actions.className = "task-inline-actions";
+      const confirm = document.createElement("button");
+      confirm.type = "button";
+      confirm.textContent = config.confirmLabel;
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => form.remove());
+      confirm.addEventListener("click", async () => {
+        await config.onSubmit(input.value.trim());
+        form.remove();
+      });
+      actions.append(confirm, cancel);
+      form.append(input, actions);
+      parent.append(form);
+      input.focus();
     }
 
     function projectForWrite() {
@@ -989,11 +1201,112 @@ export const dashboardHtml = `<!doctype html>
       if (trimmed === "all") return "all agents";
       if (trimmed === "codex-desktop") return "Codex";
       if (trimmed === "claude-opus") return "Claude";
+      if (trimmed === "grok") return "Grok";
+      if (trimmed === "antigravity") return "Antigravity";
       return trimmed;
     }
 
+    function previewMentionRoute(text) {
+      const tokens = (text.match(/@([a-zA-Z][a-zA-Z0-9_-]*)/g) || []).map((token) => token.slice(1).toLowerCase());
+      if (!tokens.length) return "";
+      if (tokens.includes("all")) return "Routing @all to every registered agent";
+      const aliases = {
+        codex: "codex-desktop",
+        claude: "claude-opus",
+        cursor: "cursor",
+        grok: "grok",
+        antigravity: "antigravity"
+      };
+      const resolved = [...new Set(tokens.map((token) => aliases[token] || token))];
+      if (resolved.length === 1) return "Routing to " + routeLabel(resolved[0]);
+      return "Routing to " + resolved.map((id) => routeLabel(id)).join(", ");
+    }
+
     function updateMessageSubmitLabel() {
+      const mentionHint = previewMentionRoute(messageInput.value);
+      if (mentionHint) {
+        messageSubmit.textContent = "Send mention";
+        if (composerRouteHint) composerRouteHint.textContent = mentionHint + " · Enter to send";
+        return;
+      }
       messageSubmit.textContent = "Tell " + routeLabel(messageTo.value);
+      if (composerRouteHint) {
+        composerRouteHint.textContent = "Enter to send · Shift+Enter for a new line · @mentions route alerts";
+      }
+    }
+
+    function renderNotifications(status) {
+      if (!status || !notificationsStatus) return;
+      notificationsStatus.replaceChildren(
+        card(
+          "agent",
+          status.running ? "Room notifier running" : "Room notifier stopped",
+          (status.enabled ? "Enabled" : "Disabled") +
+            " · every " +
+            Math.round(status.intervalMs / 1000) +
+            "s · watching " +
+            status.agentCount +
+            " registered agent" +
+            (status.agentCount === 1 ? "" : "s") +
+            (status.lastTickAt ? "\\nLast tick " + formatRelativeTime(status.lastTickAt) : "") +
+            (status.lastError ? "\\nError: " + status.lastError : "")
+        )
+      );
+
+      if (notificationsAgents) {
+        if (!status.agents?.length) {
+          setEmpty(
+            notificationsAgents,
+            "No registered agents",
+            "Agents appear here after register_agent. Only joined agents receive room alerts."
+          );
+        } else {
+          notificationsAgents.replaceChildren(
+            ...status.agents.map((agent) =>
+              card(
+                "task",
+                (agent.displayName || agent.agent) +
+                  " · " +
+                  agent.unread +
+                  " unread" +
+                  (agent.lastPingAt ? " · pinged " + formatRelativeTime(agent.lastPingAt) : ""),
+                (agent.lastError ? "Last error: " + agent.lastError + "\\n" : "") +
+                  "Inbox: " +
+                  agent.inboxPath
+              )
+            )
+          );
+        }
+      }
+
+      if (notificationsRecent) {
+        const recent = status.recent || [];
+        if (!recent.length) {
+          setEmpty(notificationsRecent, "No deliveries yet", "New routed messages trigger toast + inbox alerts for each agent.");
+        } else {
+          notificationsRecent.replaceChildren(
+            ...recent
+              .slice()
+              .reverse()
+              .slice(0, 8)
+              .map((entry) =>
+                card(
+                  "decision",
+                  formatTimestamp(entry.at) + " · " + entry.agent + " · " + entry.messageIds.join(", "),
+                  (entry.error ? "Error: " + entry.error + "\\n" : "") + entry.text
+                )
+              )
+          );
+        }
+      }
+    }
+
+    async function loadNotifications() {
+      try {
+        const response = await fetch("/api/notifications");
+        if (!response.ok) return;
+        renderNotifications(await response.json());
+      } catch {}
     }
 
     function applyMessageTemplate(template) {
@@ -1140,54 +1453,94 @@ export const dashboardHtml = `<!doctype html>
       const doneButton = document.createElement("button");
       doneButton.type = "button";
       doneButton.textContent = "Done";
-      doneButton.addEventListener("click", async () => {
-        const note = window.prompt("Optional done note");
-        if (note === null) return;
-        await postTaskUpdate({ taskId: task.id, status: "done", note: note.trim() || undefined });
+      doneButton.addEventListener("click", () => {
+        appendTaskInlineForm(item, task, {
+          placeholder: "Optional done note",
+          confirmLabel: "Mark done",
+          onSubmit: async (note) => {
+            await postTaskUpdate({ taskId: task.id, status: "done", note: note || undefined });
+          }
+        });
       });
 
       const blockedButton = document.createElement("button");
       blockedButton.type = "button";
       blockedButton.textContent = "Blocked";
-      blockedButton.addEventListener("click", async () => {
-        const note = window.prompt("Why is this blocked?");
-        if (note === null) return;
-        await postTaskUpdate({
-          taskId: task.id,
-          status: "blocked",
-          note: note.trim() || "Blocked from dashboard."
+      blockedButton.addEventListener("click", () => {
+        appendTaskInlineForm(item, task, {
+          placeholder: "Why is this blocked?",
+          confirmLabel: "Mark blocked",
+          onSubmit: async (note) => {
+            await postTaskUpdate({
+              taskId: task.id,
+              status: "blocked",
+              note: note || "Blocked from dashboard."
+            });
+          }
         });
       });
 
       const noteButton = document.createElement("button");
       noteButton.type = "button";
       noteButton.textContent = "Note";
-      noteButton.addEventListener("click", async () => {
-        const bodyText = window.prompt("Task note");
-        if (!bodyText?.trim()) return;
-        const branch = window.prompt("Branch (optional)")?.trim();
-        const commit = window.prompt("Commit (optional)")?.trim();
-        await postTaskNote({
-          taskId: task.id,
-          body: bodyText.trim(),
-          branch: branch || undefined,
-          commit: commit || undefined
+      noteButton.addEventListener("click", () => {
+        const form = document.createElement("div");
+        form.className = "task-inline-form";
+        const bodyInput = document.createElement("textarea");
+        bodyInput.rows = 2;
+        bodyInput.placeholder = "Task note";
+        const branchInput = document.createElement("input");
+        branchInput.placeholder = "Branch (optional)";
+        const commitInput = document.createElement("input");
+        commitInput.placeholder = "Commit (optional)";
+        const actionRow = document.createElement("div");
+        actionRow.className = "task-inline-actions";
+        const confirm = document.createElement("button");
+        confirm.type = "button";
+        confirm.textContent = "Add note";
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.textContent = "Cancel";
+        cancel.addEventListener("click", () => form.remove());
+        confirm.addEventListener("click", async () => {
+          if (!bodyInput.value.trim()) return;
+          await postTaskNote({
+            taskId: task.id,
+            body: bodyInput.value.trim(),
+            branch: branchInput.value.trim() || undefined,
+            commit: commitInput.value.trim() || undefined
+          });
+          form.remove();
         });
+        actionRow.append(confirm, cancel);
+        form.append(bodyInput, branchInput, commitInput, actionRow);
+        closeTaskInlineForms(item);
+        item.append(form);
+        bodyInput.focus();
       });
 
       const reassignButton = document.createElement("button");
       reassignButton.type = "button";
       reassignButton.textContent = "Reassign";
-      reassignButton.addEventListener("click", async () => {
-        const owner = window.prompt("New owner", task.owner || "");
-        if (!owner?.trim()) return;
-        await postTaskUpdate({ taskId: task.id, status: task.status, owner: owner.trim() });
+      reassignButton.addEventListener("click", () => {
+        appendTaskInlineForm(item, task, {
+          placeholder: "New owner",
+          value: task.owner || "",
+          confirmLabel: "Reassign",
+          onSubmit: async (owner) => {
+            if (!owner) return;
+            await postTaskUpdate({ taskId: task.id, status: task.status, owner });
+          }
+        });
       });
 
       const editButton = document.createElement("button");
       editButton.type = "button";
       editButton.textContent = "Edit";
-      editButton.addEventListener("click", () => fillTaskUpdateForm(task));
+      editButton.addEventListener("click", () => {
+        fillTaskUpdateForm(task);
+        setActiveNav("tasks");
+      });
 
       actions.append(doneButton, blockedButton, noteButton, reassignButton, editButton);
       item.append(meta);
@@ -1402,6 +1755,102 @@ export const dashboardHtml = `<!doctype html>
       projectStatus.value = project.status || "";
     }
 
+    function projectLabel(projectId) {
+      if (!projectId) return "Unsorted";
+      const record = lastSnapshot?.projectRecords?.find((project) => project.id === projectId);
+      return record ? record.name + " · " + projectId : projectId;
+    }
+
+    function renderMessageCard(message, showProject) {
+      const item = document.createElement("div");
+      item.className = "message";
+      const protocolMeta = [message.phase ? "phase " + message.phase : "", message.status ? "status " + message.status : ""]
+        .filter(Boolean)
+        .join(" · ");
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent =
+        formatTimestamp(message.time) +
+        " · " +
+        (message.relativeTime || formatRelativeTime(message.time)) +
+        " · " +
+        message.from +
+        " → " +
+        message.to +
+        (showProject ? " · " + projectLabel(message.project) : "") +
+        " · " +
+        message.topic +
+        (protocolMeta ? " · " + protocolMeta : "");
+      const nextSuffix = message.next && !/\\[NEXT:/i.test(message.body) ? "\\n\\nNext: " + message.next : "";
+      item.append(meta);
+      appendExpandableBody(item, message.body + nextSuffix, 1100);
+      appendAttachmentLinks(item, message.attachments);
+      const followUpHints = message.followUpHints || [];
+      if (followUpHints.length) {
+        const hints = document.createElement("div");
+        hints.className = "follow-up";
+        hints.replaceChildren(...followUpHints.map((hint) => {
+          const chip = document.createElement("span");
+          chip.title = hint.dueIso || hint.label;
+          chip.textContent = hint.label + (hint.dueIso ? " · " + hint.dueIso : "");
+          return chip;
+        }));
+        item.append(hints);
+      }
+      return item;
+    }
+
+    function renderFeedMessages(messages) {
+      feed.replaceChildren();
+      if (!messages.length) {
+        setEmpty(feed, "No messages yet", "Post below to reach all agents, or route to Codex or Claude.");
+        return;
+      }
+
+      if (selectedProject !== "all") {
+        feed.append(...messages.map((message) => renderMessageCard(message, false)));
+        return;
+      }
+
+      const groups = new Map();
+      for (const message of messages) {
+        const key = message.project || "unsorted";
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(message);
+      }
+
+      const orderedKeys = [...groups.keys()].sort((a, b) => {
+        if (a === "unsorted") return 1;
+        if (b === "unsorted") return -1;
+        return projectLabel(a).localeCompare(projectLabel(b));
+      });
+
+      for (const key of orderedKeys) {
+        const groupMessages = groups.get(key) || [];
+        const group = document.createElement("div");
+        group.className = "feed-project-group";
+        const head = document.createElement("div");
+        head.className = "feed-project-head";
+        const title = document.createElement("strong");
+        title.textContent = projectLabel(key === "unsorted" ? "" : key);
+        const count = document.createElement("span");
+        count.textContent = groupMessages.length + " message" + (groupMessages.length === 1 ? "" : "s");
+        const focusBtn = document.createElement("button");
+        focusBtn.type = "button";
+        focusBtn.textContent = "View only";
+        focusBtn.addEventListener("click", async () => {
+          selectedProject = key === "unsorted" ? "unsorted" : key;
+          projectSelect.value = selectedProject;
+          const record = lastSnapshot?.projectRecords?.find((project) => project.id === selectedProject);
+          if (record) await saveActiveProject(record.id);
+          await loadSnapshot();
+        });
+        head.append(title, count, focusBtn);
+        group.append(head, ...groupMessages.map((message) => renderMessageCard(message, false)));
+        feed.append(group);
+      }
+    }
+
     let lastSnapshot;
 
     function renderSnapshot(snapshot) {
@@ -1421,47 +1870,7 @@ export const dashboardHtml = `<!doctype html>
       if (snapshot.config?.currentUser) currentUserInput.value = snapshot.config.currentUser;
       enforceProtocol.checked = Boolean(snapshot.config?.enforceProtocol);
 
-      feed.replaceChildren(...snapshot.messages.map((message) => {
-        const item = document.createElement("div");
-        item.className = "message";
-        const protocolMeta = [message.phase ? "phase " + message.phase : "", message.status ? "status " + message.status : ""]
-          .filter(Boolean)
-          .join(" · ");
-        const meta = document.createElement("div");
-        meta.className = "meta";
-        meta.textContent =
-          formatTimestamp(message.time) +
-          " · " +
-          (message.relativeTime || formatRelativeTime(message.time)) +
-          " · " +
-          message.from +
-          " → " +
-          message.to +
-          " · " +
-          message.topic +
-          (protocolMeta ? " · " + protocolMeta : "");
-        const body = document.createElement("div");
-        const nextSuffix = message.next && !/\\[NEXT:/i.test(message.body) ? "\\n\\nNext: " + message.next : "";
-        item.append(meta);
-        appendExpandableBody(item, message.body + nextSuffix, 1100);
-        appendAttachmentLinks(item, message.attachments);
-        const followUpHints = message.followUpHints || [];
-        if (followUpHints.length) {
-          const hints = document.createElement("div");
-          hints.className = "follow-up";
-          hints.replaceChildren(...followUpHints.map((hint) => {
-            const chip = document.createElement("span");
-            chip.title = hint.dueIso || hint.label;
-            chip.textContent = hint.label + (hint.dueIso ? " · " + hint.dueIso : "");
-            return chip;
-          }));
-          item.append(hints);
-        }
-        return item;
-      }));
-      if (!snapshot.messages.length) {
-        setEmpty(feed, "No messages yet", "Post below to reach all agents, or route to Codex or Claude.");
-      }
+      renderFeedMessages(snapshot.messages);
 
       agents.replaceChildren(...snapshot.agents.map((agent) =>
         card(
@@ -1533,18 +1942,24 @@ export const dashboardHtml = `<!doctype html>
         (snapshot.staleTasks?.length || 0) +
         (snapshot.staleMessages?.length || 0) +
         (snapshot.staleDecisions?.length || 0);
+      const navAlertsCount = document.getElementById("nav-alerts-count");
+      const navTasksCount = document.getElementById("nav-tasks-count");
       if (alertCount > 0) {
         alertsBadge.hidden = false;
         alertsBadge.textContent = String(alertCount);
         alertsBadge.classList.toggle("warn", alertCount > 0);
-        sectionAlerts.open = true;
+        if (navAlertsCount) {
+          navAlertsCount.hidden = false;
+          navAlertsCount.textContent = String(alertCount);
+        }
       } else {
         alertsBadge.hidden = true;
+        if (navAlertsCount) navAlertsCount.hidden = true;
       }
 
       const openTasks = (snapshot.tasks || []).filter((task) => task.status !== "done").length;
       tasksBadge.textContent = String(openTasks);
-      if (openTasks > 0) document.getElementById("section-tasks").open = true;
+      if (navTasksCount) navTasksCount.textContent = String(openTasks);
 
       projectRecords.replaceChildren(...(snapshot.projectRecords || []).map((project) =>
         card("task", project.name + " · " + project.id, project.folderPath + (project.status ? "\\nStatus: " + project.status : ""))
@@ -1595,11 +2010,32 @@ export const dashboardHtml = `<!doctype html>
     sideToggleInline.addEventListener("click", () => setPanelOpen(false));
     panelOpen.addEventListener("click", () => setPanelOpen(true));
     headerProgress.addEventListener("click", () => {
-      setPanelOpen(true);
-      sectionRoadmap.open = true;
+      setActiveNav("roadmap");
       sectionRoadmap.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
     loadPanelPreference();
+    setActiveNav("overview");
+
+    const filterDrawer = document.getElementById("filter-drawer");
+    const filterDrawerOpen = document.getElementById("filter-drawer-open");
+    const filterDrawerClose = document.getElementById("filter-drawer-close");
+    const composerToggle = document.getElementById("composer-toggle");
+    const composerAdvanced = document.getElementById("composer-advanced");
+
+    filterDrawerOpen?.addEventListener("click", () => filterDrawer?.showModal());
+    filterDrawerClose?.addEventListener("click", () => filterDrawer?.close());
+    filterDrawer?.addEventListener("click", (event) => {
+      if (event.target === filterDrawer) filterDrawer.close();
+    });
+
+    composerToggle?.addEventListener("click", () => {
+      const open = composerAdvanced?.classList.toggle("is-open");
+      composerToggle.textContent = open ? "Fewer options" : "More options";
+    });
+
+    document.querySelectorAll("[data-nav]").forEach((button) => {
+      button.addEventListener("click", () => setActiveNav(button.dataset.nav));
+    });
 
     searchInput.addEventListener("input", () => {
       searchQuery = searchInput.value.trim();
@@ -1651,6 +2087,7 @@ export const dashboardHtml = `<!doctype html>
     });
 
     messageTo.addEventListener("input", updateMessageSubmitLabel);
+    messageInput.addEventListener("input", updateMessageSubmitLabel);
 
     staleThresholdForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1664,8 +2101,7 @@ export const dashboardHtml = `<!doctype html>
       await loadSnapshot();
     });
 
-    messageForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    async function submitMessage() {
       const body = messageInput.value.trim();
       const to = messageTo.value.trim() || "all";
       if (!body) return;
@@ -1692,6 +2128,20 @@ export const dashboardHtml = `<!doctype html>
       pendingAttachmentIds = [];
       renderPendingAttachments();
       await loadSnapshot();
+    }
+
+    messageForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await submitMessage();
+    });
+
+    messageInput.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+      const isEnter = event.key === "Enter" || event.code === "Enter" || event.code === "NumpadEnter";
+      if (!isEnter) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void submitMessage();
     });
 
     projectForm.addEventListener("submit", async (event) => {
@@ -1804,9 +2254,11 @@ export const dashboardHtml = `<!doctype html>
     });
 
     loadSnapshot();
+    loadNotifications();
     updateMessageSubmitLabel();
     setInterval(loadSnapshot, 5000);
-    window.matchMedia("(max-width: 960px)").addEventListener("change", (event) => {
+    setInterval(loadNotifications, 5000);
+    window.matchMedia("(max-width: 720px)").addEventListener("change", (event) => {
       if (event.matches) setPanelOpen(true);
     });
   </script>

@@ -1,5 +1,5 @@
 param(
-  [string]$Agents = "claude-opus,codex-desktop,cursor",
+  [string]$Agents = "auto",
   [string]$Room = "D:\projects\.agent-room",
   [string]$Url = "http://127.0.0.1:4777/api/snapshot?project=all",
   [int]$IntervalMs = 5000,

@@ -144,7 +144,7 @@ Implemented:
 - `npm run install-shortcut -- -Remove` removes desktop or startup shortcuts cleanly.
 - `npm run install-shortcut -- -Watch` creates desktop/startup shortcuts for the watcher launcher.
 - `npm run install-suite` creates or removes dashboard and watcher shortcuts together.
-- `scripts/start-agent-room-suite.ps1` and `npm run start-suite` start dashboard + watcher together.
+- `scripts/start-agent-room-suite.ps1` and `npm run start-suite` start dashboard with embedded room notifier; `-WithWatch` optionally adds external watcher.
 - Launcher marker `.launcher-suite.json` in the room for roadmap honesty.
 
 Follow-up:

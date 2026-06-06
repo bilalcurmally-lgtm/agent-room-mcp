@@ -6,3 +6,4 @@ agent-tools/
 mcps/
 terminals/
 .playwright-mcp/
+_live-dashboard.html

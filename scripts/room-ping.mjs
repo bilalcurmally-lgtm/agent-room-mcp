@@ -8,12 +8,20 @@ const DEFAULT_SNAPSHOT_URL =
   process.env.AGENT_ROOM_SNAPSHOT_URL ?? "http://127.0.0.1:4777/api/snapshot?project=all";
 const DEFAULT_LIMIT = 10;
 
+export function messageTargetsAgent(message, agent) {
+  if (message.from === agent) return false;
+  if (Array.isArray(message.mentions) && message.mentions.length > 0) {
+    return message.mentions.includes(agent);
+  }
+  if (message.to === "all") return true;
+  return message.to === agent;
+}
+
 export function selectUnreadMessages(messages, options) {
   const lastSeen = options.lastSeen ?? "";
   return messages
     .filter((message) => message.id > lastSeen)
-    .filter((message) => message.from !== options.agent)
-    .filter((message) => message.to === "all" || message.to === options.agent)
+    .filter((message) => messageTargetsAgent(message, options.agent))
     .sort((a, b) => a.id.localeCompare(b.id))
     .slice(0, options.limit);
 }

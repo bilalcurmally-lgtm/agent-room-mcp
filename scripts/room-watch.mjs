@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatRoomPing, selectUnreadMessages } from "./room-ping.mjs";
 
-const DEFAULT_AGENTS = "claude-opus,codex-desktop,cursor";
+const DEFAULT_AGENTS = "auto";
 const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
 const DEFAULT_SNAPSHOT_URL =
   process.env.AGENT_ROOM_SNAPSHOT_URL ?? "http://127.0.0.1:4777/api/snapshot?project=all";
@@ -66,7 +66,7 @@ const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 
 async function main() {
   const options = resolveWatchOptions(process.argv.slice(2), process.env, REPO_ROOT);
-  if (!options.agents.length) throw new Error("--agents must include at least one agent id");
+  if (!options.agents.length) options.agents = ["auto"];
   if (!Number.isFinite(options.intervalMs) || options.intervalMs <= 0) throw new Error("--interval-ms must be positive");
 
   do {
@@ -75,11 +75,21 @@ async function main() {
   } while (!options.once);
 }
 
+export function resolveWatchAgents(snapshotAgents, configuredAgents) {
+  const useAuto =
+    !configuredAgents.length ||
+    configuredAgents.length === 1 && configuredAgents[0] === "auto";
+  if (!useAuto) return configuredAgents;
+  return (snapshotAgents ?? []).map((agent) => agent.id).filter(Boolean);
+}
+
 export async function runWatchTick(options) {
   try {
     const snapshot = await fetchSnapshot(options.snapshotUrl);
-    const lastSeen = await readAllLastSeen(options.roomDir, options.agents);
-    const notifications = selectAgentNotifications(snapshot.messages ?? [], options.agents, lastSeen, options.limit);
+    const agents = resolveWatchAgents(snapshot.agents, options.agents);
+    if (!agents.length) return { notifications: [], messageCount: snapshot.messages?.length ?? 0 };
+    const lastSeen = await readAllLastSeen(options.roomDir, agents);
+    const notifications = selectAgentNotifications(snapshot.messages ?? [], agents, lastSeen, options.limit);
 
     for (const notification of notifications) {
       const text = formatWatcherNotification(notification);

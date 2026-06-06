@@ -27,6 +27,7 @@ export type TaskStatus = "open" | "claimed" | "blocked" | "done";
 export interface PostMessageInput {
   from: AgentId;
   to: AgentId | "all";
+  mentions?: AgentId[];
   topic: string;
   body: string;
   project?: string;
@@ -294,6 +295,7 @@ export class AgentRoomStore {
       const message: RoomMessage = {
         from: input.from,
         to: input.to,
+        ...(input.mentions?.length ? { mentions: input.mentions } : {}),
         topic: input.topic,
         body,
         project: input.project,

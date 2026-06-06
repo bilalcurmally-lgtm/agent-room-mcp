@@ -62,13 +62,19 @@ describe("room-watch helpers", () => {
     });
   });
 
-  it("defaults agents to include cursor and can resolve --wake command", async () => {
-    const { defaultWakeCommand } = await import("../scripts/room-watch.mjs");
+  it("defaults agents to auto and can resolve --wake command", async () => {
+    const { defaultWakeCommand, resolveWatchAgents } = await import("../scripts/room-watch.mjs");
     expect(resolveWatchOptions(["--wake", "--once"], {}, "D:/projects/agent-room-mcp")).toMatchObject({
-      agents: ["claude-opus", "codex-desktop", "cursor"],
+      agents: ["auto"],
       wake: true,
       command: defaultWakeCommand("D:/projects/agent-room-mcp")
     });
+    expect(
+      resolveWatchAgents(
+        [{ id: "grok" }, { id: "codex-desktop" }],
+        ["auto"]
+      )
+    ).toEqual(["grok", "codex-desktop"]);
     expect(defaultWakeCommand("D:/projects/agent-room-mcp")).toContain("wake-agent.ps1");
   });
 });

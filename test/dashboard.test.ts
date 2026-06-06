@@ -299,6 +299,86 @@ describe("dashboard server", () => {
     expect(html).toContain("setPanelOpen");
     expect(html).toContain("stale-quiet");
     expect(html).toContain("No messages yet");
+    expect(html).toContain("section-notifications");
+    expect(html).toContain("renderNotifications");
+    expect(html).toContain("loadNotifications");
+    expect(html).toContain("To Grok");
+  });
+
+  it("exposes room notification status from the dashboard API", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false, enableNotifications: true });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/notifications`);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      enabled: true,
+      running: true,
+      agents: expect.any(Array),
+      recent: expect.any(Array)
+    });
+  });
+
+  it("routes @mentions when posting from the dashboard API", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    await store.registerAgent({ agent: "grok" });
+    await store.registerAgent({ agent: "codex-desktop" });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        body: "@grok please review this",
+        project: "agent-room-mcp"
+      })
+    });
+    expect(response.status).toBe(201);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.messages).toMatchObject([{ to: "grok", body: expect.stringContaining("@grok") }]);
+  });
+
+  it("delivers room notifications to joined agents after posting", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    await store.registerAgent({ agent: "grok" });
+    await store.registerAgent({ agent: "codex-desktop" });
+    const server = await startDashboardServer({
+      roomDir,
+      port: 0,
+      openBrowser: false,
+      enableNotifications: true,
+      notifyCommand: 'node -e "process.exit(0)"'
+    });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        body: "@grok ping from dashboard",
+        project: "agent-room-mcp"
+      })
+    });
+    expect(response.status).toBe(201);
+
+    const notifications = await fetch(`${server.url}/api/notifications`).then((res) => res.json());
+    expect(notifications).toMatchObject({
+      enabled: true,
+      running: true,
+      agentCount: 2,
+      recent: expect.arrayContaining([
+        expect.objectContaining({
+          agent: "grok",
+          messageIds: expect.arrayContaining([expect.any(String)])
+        })
+      ])
+    });
+    expect(notifications.recent.find((entry: { agent: string }) => entry.agent === "codex-desktop")).toBeUndefined();
   });
 
   it("surfaces follow-up hints and stale message warnings in snapshots", async () => {
@@ -698,6 +778,10 @@ describe("dashboard server", () => {
     expect(html).toContain("function applyMessageTemplate(template)");
     expect(html).toContain("function updateMessageSubmitLabel()");
     expect(html).toContain("applyFilters({ agent: currentUserIdentity()");
+    expect(html).toContain("Enter to send");
+    expect(html).toContain("async function submitMessage()");
+    expect(html).toContain('messageInput.addEventListener("keydown"');
+    expect(html).toContain("void submitMessage()");
   });
 
   it("lets the user register a project folder and returns it in snapshots", async () => {

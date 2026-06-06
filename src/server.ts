@@ -5,6 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { assertProtocolCompliant } from "./protocol.js";
+import { resolveMessageRoute } from "./routing.js";
 import { AgentRoomStore, MAX_TEXT_LENGTH } from "./store.js";
 
 const VERSION = "0.1.0";
@@ -150,7 +151,19 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => {
       const config = await store.getConfig();
       assertProtocolCompliant(input, config.enforceProtocol);
-      return jsonResult(await store.postMessage(input));
+      const agents = await store.listAgents();
+      const route = resolveMessageRoute({
+        body: input.body,
+        to: input.to,
+        registeredAgentIds: agents.map((agent) => agent.id)
+      });
+      return jsonResult(
+        await store.postMessage({
+          ...input,
+          to: route.to,
+          mentions: route.mentions
+        })
+      );
     }
   );
 

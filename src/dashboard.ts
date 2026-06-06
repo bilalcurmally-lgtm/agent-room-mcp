@@ -9,6 +9,7 @@ import {
   resolveWriteProject,
   type RoomConfig,
   type RoomDecision,
+  type PostMessageInput,
   type RoomMessage,
   type RoomProject,
   type RoomStatus,
@@ -18,8 +19,10 @@ import {
 } from "./store.js";
 import { formatRelativeTime, parseFollowUpHints, type FollowUpHint } from "./temporal.js";
 import { dashboardHtml } from "./dashboard-ui.js";
+import { resolveMessageRoute } from "./routing.js";
 import type { EnrichedRoadmapProgress } from "./room-progress.js";
 import { getRoadmapProgressForRoom } from "./room-progress.js";
+import { defaultWakeCommand, RoomNotifier } from "./room-notify.js";
 import { protocolWarningsForMessages, type ProtocolWarning } from "./protocol.js";
 import { createRoomTime, type RoomTime } from "./time.js";
 
@@ -28,6 +31,8 @@ export interface DashboardOptions {
   port?: number;
   host?: string;
   openBrowser?: boolean;
+  enableNotifications?: boolean;
+  notifyCommand?: string;
 }
 
 export interface DashboardServer {
@@ -89,10 +94,20 @@ export async function startDashboardServer(options: DashboardOptions): Promise<D
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 0;
   const store = await AgentRoomStore.open(options.roomDir);
+  const enableNotifications = options.enableNotifications ?? process.env.VITEST !== "true";
+  const notifier = enableNotifications
+    ? new RoomNotifier({
+        roomDir: options.roomDir,
+        wakeCommand: options.notifyCommand ?? process.env.AGENT_ROOM_NOTIFY_COMMAND ?? defaultWakeCommand(),
+        listAgents: () => store.listAgents(),
+        listMessages: () => store.listMessages()
+      })
+    : undefined;
+  notifier?.start();
 
   const server = createServer(async (request, response) => {
     try {
-      await routeRequest(store, request, response);
+      await routeRequest(store, notifier ?? null, request, response);
     } catch (error) {
       if (error instanceof HttpError) {
         sendJson(response, error.status, { error: error.message });
@@ -115,6 +130,7 @@ export async function startDashboardServer(options: DashboardOptions): Promise<D
     url: `http://${host}:${address.port}`,
     close: () =>
       new Promise((resolve, reject) => {
+        notifier?.stop();
         server.close((error) => {
           if (error) reject(error);
           else resolve();
@@ -174,6 +190,7 @@ export function createBrowserLaunch(url: string, platform: NodeJS.Platform = pro
 
 async function routeRequest(
   store: AgentRoomStore,
+  notifier: RoomNotifier | null,
   request: IncomingMessage,
   response: ServerResponse
 ): Promise<void> {
@@ -195,6 +212,22 @@ async function routeRequest(
         since: url.searchParams.get("since") ?? "",
         until: url.searchParams.get("until") ?? ""
       })
+    );
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/notifications") {
+    sendJson(
+      response,
+      200,
+      notifier?.getStatus() ?? {
+        enabled: false,
+        running: false,
+        intervalMs: 5000,
+        agentCount: 0,
+        agents: [],
+        recent: []
+      }
     );
     return;
   }
@@ -231,7 +264,7 @@ async function routeRequest(
 
   if (method === "POST" && url.pathname === "/api/messages") {
     const body = await readJsonBody(request);
-    const message = await store.postMessage({
+    const message = await routeAndPostMessage(store, notifier, {
       from: optionalString(body.from) ?? "user",
       to: optionalString(body.to) ?? "all",
       topic: typeof body.topic === "string" ? body.topic : "User note",
@@ -347,6 +380,26 @@ async function routeRequest(
   }
 
   sendJson(response, 404, { error: "Not found" });
+}
+
+async function routeAndPostMessage(
+  store: AgentRoomStore,
+  notifier: RoomNotifier | null,
+  input: PostMessageInput
+): Promise<RoomMessage> {
+  const agents = await store.listAgents();
+  const route = resolveMessageRoute({
+    body: input.body,
+    to: input.to,
+    registeredAgentIds: agents.map((agent) => agent.id)
+  });
+  const message = await store.postMessage({
+    ...input,
+    to: route.to,
+    mentions: route.mentions
+  });
+  if (notifier) await notifier.tick();
+  return message;
 }
 
 async function createSnapshot(

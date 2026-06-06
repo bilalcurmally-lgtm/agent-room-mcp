@@ -12,8 +12,8 @@ const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 async function main() {
   const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dogfood-"));
   const store = await AgentRoomStore.open(roomDir);
-  const port = await startSnapshotServer(roomDir);
-  const snapshotUrl = `http://127.0.0.1:${port}/api/snapshot?project=all`;
+  const dashboard = await startSnapshotServer(roomDir);
+  const snapshotUrl = `${dashboard.url}/api/snapshot?project=all`;
 
   try {
     await store.registerAgent({ agent: "claude-opus", displayName: "Claude" });
@@ -67,15 +67,19 @@ async function main() {
     console.log(`  room-watch: ${watch.notifications.length} notification(s)`);
     console.log(`  wake command: ${wakeCommand}`);
   } finally {
+    await dashboard.close();
     await rm(roomDir, { recursive: true, force: true });
   }
 }
 
 async function startSnapshotServer(roomDir) {
   const { startDashboardServer } = await import("../dist/dashboard.js");
-  const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
-  const port = Number(new URL(server.url).port);
-  return port;
+  return startDashboardServer({
+    roomDir,
+    port: 0,
+    openBrowser: false,
+    enableNotifications: false
+  });
 }
 
 main().catch((error) => {

@@ -1,14 +1,46 @@
 # Ping And Watch Reliability
 
-Last updated: 2026-06-05
+Last updated: 2026-06-06
 
-Agent Room uses two complementary paths to surface unread messages without manual `check_in`
-polling.
+Agent Room surfaces unread messages without manual `check_in` polling through one global
+room notifier plus optional client-specific hooks.
 
-## Claude Code: prompt hook
+## Global room notifier (all agents)
 
-Claude Code can inject hook stdout into the model context. Use `scripts/room-ping.mjs` on
-`UserPromptSubmit` and `SessionStart`:
+When the dashboard is running (`npm run start-room` or `npm run start-suite`), an embedded
+**room notifier** polls the room every 5 seconds and delivers alerts to every **registered**
+agent (agents that have called `register_agent` / joined via `check_in`).
+
+Delivery path for every client (Codex, Claude, Grok, Antigravity, Cursor, …):
+
+1. Toast via `scripts/wake-agent.ps1` → `notify-agent-room.ps1`
+2. Full ping text written to `<room>/.wake-inbox-<agent>.txt`
+
+The dashboard **Notifications** panel shows notifier status, per-agent unread counts, last
+delivery, and recent ping text.
+
+### Mention routing
+
+When anyone posts with `@all`, `@codex`, `@grok`, `@claude`, or a registered agent id:
+
+- `@all` / broadcast → every joined agent except the sender
+- Single `@mention` → only that agent (if joined)
+- Multiple `@mentions` → only the named joined agents (not everyone)
+
+Unregistered agents are ignored: `@grok` does nothing until `grok` has joined the room.
+
+Posting from the dashboard triggers an immediate notifier tick (no 5s wait).
+
+### Join flow
+
+1. Agent calls `register_agent` once (or auto-registers on first `check_in`)
+2. Room notifier picks up the agent id from `agents.json`
+3. Routed messages trigger toast + inbox for that agent only
+
+## Claude Code: optional prompt hook
+
+Claude Code can additionally inject hook stdout into model context. Use
+`scripts/room-ping.mjs` on `UserPromptSubmit` and `SessionStart`:
 
 ```json
 {
@@ -40,10 +72,14 @@ Claude Code can inject hook stdout into the model context. Use `scripts/room-pin
 The hook reads `GET /api/snapshot`, prints only new routed messages, and advances
 `.lastseen-<agent>` in the room directory. It fails silently when the dashboard is down.
 
-## Codex and Cursor: watcher (no prompt hook)
+Claude still receives the global toast/inbox from the room notifier; the hook is an extra
+context injection path.
 
-Codex and Cursor do not expose a Claude-style prompt hook in this repo's setup path. Their
-primary wake mechanism is the room watcher plus local notifications:
+## Optional external watcher
+
+`npm run start-watch` runs `scripts/room-watch.mjs` as a separate process. Default agents
+are `auto` (all registered agents from the dashboard snapshot). Use this only if you want
+redundant delivery outside the dashboard process:
 
 ```powershell
 npm run start-watch
@@ -52,18 +88,16 @@ npm run start-watch
 Or explicitly:
 
 ```powershell
-npm run watch-room -- --agents claude-opus,codex-desktop,cursor --wake --once --dry-run
+npm run watch-room -- --agents auto --wake --once --dry-run
 ```
+
+`npm run start-suite` starts the dashboard only. Pass `-WithWatch` to also spawn the external
+watcher.
 
 ### Wake command (`wake-agent.ps1`)
 
 When `--wake` is set (or `npm run start-watch`), the watcher runs `scripts/wake-agent.ps1`
-for each notification. That script:
-
-1. Shows a Windows toast via `notify-agent-room.ps1`
-2. Writes the full ping text to `<room>/.wake-inbox-<agent>.txt` for manual paste into Codex or Cursor
-
-Environment variables passed to the wake command:
+for each notification. Environment variables:
 
 | Variable | Meaning |
 | --- | --- |
@@ -73,38 +107,42 @@ Environment variables passed to the wake command:
 
 ## Automated dogfood
 
-Prove ping and watch against a live dashboard snapshot without opening Claude Code:
-
 ```powershell
 npm run dogfood-ping-watch
 ```
 
-This seeds a room, runs `room-ping` twice (second pass must be silent), and runs one
-`room-watch` dry-run tick. `npm test` also covers this in `test/ping-watch.integration.test.ts`.
+`npm test` covers this in `test/ping-watch.integration.test.ts`.
 
-## Manual acceptance (Claude Code hook)
+## Manual acceptance
 
 1. Start the dashboard: `npm run start-room`
-2. Confirm the hook is in user-scope Claude settings (see above)
-3. Restart Claude Code
-4. Post a message to `claude-opus` or `all` from another agent or the dashboard
-5. Send any prompt in Claude Code — the new message should appear in context without you asking
+2. Each agent calls `register_agent` then `check_in`
+3. Post `@codex` or `@all` from the dashboard or another agent
+4. Targeted agents receive a Windows toast and `.wake-inbox-<agent>.txt` update
+5. Dashboard Notifications panel shows the delivery
+
+For Claude Code hook acceptance, also confirm the hook in user-scope settings and restart
+Claude Code — new messages should appear in context on the next prompt.
 
 ## State files
 
 | File | Used by |
 | --- | --- |
 | `.lastseen-<agent>` | `room-ping.mjs` hook |
-| `.watch-lastseen-<agent>` | `room-watch.mjs` watcher |
+| `.watch-lastseen-<agent>` | Room notifier + `room-watch.mjs` |
+| `notifications.jsonl` | Delivery log |
+| `.wake-inbox-<agent>.txt` | Inbox paste target for agents without hooks |
 
-Hook and watcher track separately so a toast does not suppress hook output.
+Hook and notifier track last-seen separately so a toast does not suppress hook output.
 
 ## Agent matrix
 
 See `scripts/agent-wake.mjs` for the canonical profile list. Summary:
 
-| Client | Agent id | Primary | Hook | Watcher |
-| --- | --- | --- | --- | --- |
-| Claude Code | `claude-opus` | hook | `room-ping.mjs` | optional toast |
-| Codex | `codex-desktop` | watcher | — | toast + inbox |
-| Cursor | `cursor` | watcher | — | toast + inbox |
+| Client | Agent id | Global notifier | Optional hook |
+| --- | --- | --- | --- |
+| Claude Code | `claude-opus` | toast + inbox | `room-ping.mjs` |
+| Codex | `codex-desktop` | toast + inbox | — |
+| Cursor | `cursor` | toast + inbox | — |
+| Grok | `grok` | toast + inbox | — |
+| Antigravity | `antigravity` | toast + inbox | — |

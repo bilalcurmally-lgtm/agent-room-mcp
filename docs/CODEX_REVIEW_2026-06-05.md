@@ -1,5 +1,7 @@
 # Codex Review Packet — Agent Room MCP
 
+> **Superseded for UI + notifications:** see `docs/CODEX_REVIEW_2026-06-06.md` for the latest handoff.
+
 **Date:** 2026-06-05  
 **Repo:** `D:\projects\agent-room-mcp`  
 **Live room (vault):** `D:\projects\.agent-room`  
