@@ -321,7 +321,7 @@ export class AgentRoomStore {
         status: compliance.status,
         next: compliance.next,
         phase: compliance.phase,
-        id: nextId(messages.length + 1),
+        id: nextMessageId(messages),
         time: now(),
         ...(attachments?.length ? { attachments } : {})
       };
@@ -1027,11 +1027,16 @@ export class AgentRoomStore {
     return raw
       .split(/\r?\n/)
       .filter(Boolean)
-      .map((line, index) => {
+      .flatMap((line, index) => {
         try {
-          return JSON.parse(line) as T;
+          return [JSON.parse(line) as T];
         } catch (error) {
-          throw storageParseError(`${fileName} line ${index + 1}`, error);
+          // Quarantine a single corrupt line instead of bricking every read for
+          // every agent (check_in, read_messages, dashboard). Log it, skip it,
+          // and keep serving the rest of the room. A truncated/fat-fingered
+          // append no longer takes the whole room offline.
+          console.warn(storageLineSkipWarning(`${fileName} line ${index + 1}`, error));
+          return [] as T[];
         }
       });
   }
@@ -1171,7 +1176,7 @@ function filterVisibleMessages(
   const includeBroadcasts = input.includeBroadcasts ?? true;
 
   const visible = messages.filter((message) => {
-    if (input.sinceId && message.id <= input.sinceId) return false;
+    if (input.sinceId && messageIdValue(message.id) <= messageIdValue(input.sinceId)) return false;
     if (!matchesProject(message, input.project)) return false;
     // Single source of truth for "who sees this": honors @mentions and
     // excludes the sender's own messages. Mirrors routing.ts so reads and
@@ -1204,6 +1209,11 @@ function storageParseError(fileName: string, error: unknown): Error {
   return new Error(
     `Failed to parse ${fileName}. The file was left unchanged; fix or restore it before writing again. ${detail}`
   );
+}
+
+function storageLineSkipWarning(location: string, error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `agent-room: skipped unparseable ${location} (quarantined; the rest of the room is still readable). ${detail}`;
 }
 
 function isNotFound(error: unknown): boolean {
@@ -1244,6 +1254,26 @@ function findAgent(agents: RoomAgent[], agentId: AgentId): RoomAgent {
 
 function nextId(index: number): string {
   return String(index).padStart(6, "0");
+}
+
+// Message ids are zero-padded decimal strings ("000001"). Past 999,999 they grow
+// to 7+ chars, and a lexicographic compare ("1000000" < "999999") is wrong. Parse
+// to an integer and compare numerically so sinceId/ordering stay correct at any
+// scale. Backward compatible with existing 6-char ids.
+export function messageIdValue(id: string | undefined): number {
+  const value = Number.parseInt(id ?? "", 10);
+  return Number.isFinite(value) ? value : 0;
+}
+
+// Derive the next id from the highest existing id rather than the array length,
+// so a quarantined (skipped) message line can never cause a duplicate id.
+function nextMessageId(messages: RoomMessage[]): string {
+  let max = 0;
+  for (const message of messages) {
+    const value = messageIdValue(message.id);
+    if (value > max) max = value;
+  }
+  return nextId(max + 1);
 }
 
 function now(): string {

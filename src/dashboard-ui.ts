@@ -850,6 +850,12 @@ export const dashboardHtml = `<!doctype html>
   <script>
     let selectedProject = "all";
     let searchQuery = "";
+    // Keys of bodies the user has expanded ("Show full"). Survives the 5s
+    // auto-refresh rebuild so an expanded message/task stays expanded.
+    const expandedBodies = new Set();
+    // Signature of the last feed render; lets the auto-refresh skip rebuilding
+    // (and thus skip resetting scroll) when nothing in the feed changed.
+    let lastFeedSignature = null;
     let filterAgent = "";
     let filterSince = "";
     let filterUntil = "";
@@ -1385,21 +1391,26 @@ export const dashboardHtml = `<!doctype html>
       return item;
     }
 
-    function appendExpandableBody(parent, text, limit = 1200) {
+    function appendExpandableBody(parent, text, limit = 1200, expandKey) {
       const body = document.createElement("div");
       body.className = "body";
       body.textContent = text;
       parent.append(body);
       if (text.length <= limit) return body;
 
-      body.classList.add("is-clamped");
+      const startExpanded = expandKey != null && expandedBodies.has(expandKey);
+      if (!startExpanded) body.classList.add("is-clamped");
       const toggle = document.createElement("button");
       toggle.type = "button";
       toggle.className = "inline-toggle";
-      toggle.textContent = "Show full";
+      toggle.textContent = startExpanded ? "Collapse" : "Show full";
       toggle.addEventListener("click", () => {
         const clamped = body.classList.toggle("is-clamped");
         toggle.textContent = clamped ? "Show full" : "Collapse";
+        if (expandKey != null) {
+          if (clamped) expandedBodies.delete(expandKey);
+          else expandedBodies.add(expandKey);
+        }
       });
       parent.append(toggle);
       return body;
@@ -1563,7 +1574,8 @@ export const dashboardHtml = `<!doctype html>
       appendExpandableBody(
         item,
         task.title + (task.body ? "\\n" + task.body : "") + (task.notes?.length ? "\\n\\nNotes:\\n" + task.notes.map(formatTaskNote).join("\\n") : ""),
-        900
+        900,
+        "task:" + task.id
       );
       appendAttachmentLinks(item, task.attachments);
       appendAttachmentLinks(item, collectNoteAttachments(task));
@@ -1799,7 +1811,7 @@ export const dashboardHtml = `<!doctype html>
         (protocolMeta ? " · " + protocolMeta : "");
       const nextSuffix = message.next && !/\\[NEXT:/i.test(message.body) ? "\\n\\nNext: " + message.next : "";
       item.append(meta);
-      appendExpandableBody(item, message.body + nextSuffix, 1100);
+      appendExpandableBody(item, message.body + nextSuffix, 1100, "msg:" + message.id);
       appendAttachmentLinks(item, message.attachments);
       const followUpHints = message.followUpHints || [];
       if (followUpHints.length) {
@@ -1816,7 +1828,24 @@ export const dashboardHtml = `<!doctype html>
       return item;
     }
 
+    function feedSignature(messages) {
+      return selectedProject + "|" + messages
+        .map((m) => m.id + ":" + m.time + ":" + (m.body ? m.body.length : 0) + ":" + (m.status || "") + ":" + (m.phase || ""))
+        .join(",");
+    }
+
     function renderFeedMessages(messages) {
+      // The 5s auto-refresh calls this on every poll. When nothing in the feed
+      // changed (the common case), skip the rebuild entirely so scroll position
+      // and expanded ("Show full") cards are left untouched.
+      const signature = feedSignature(messages);
+      if (signature === lastFeedSignature && feed.childElementCount > 0) return;
+      // A real change rebuilds the feed; remember scroll so a new message
+      // doesn't yank the viewport back to the top (expanded cards re-expand
+      // from expandedBodies).
+      const previousScroll = feed.scrollTop;
+      lastFeedSignature = signature;
+
       feed.replaceChildren();
       if (!messages.length) {
         setEmpty(feed, "No messages yet", "Post below to reach all agents, or route to Codex or Claude.");
@@ -1824,11 +1853,14 @@ export const dashboardHtml = `<!doctype html>
       }
       const newestFirst = [...messages].sort((a, b) => {
         const timeDelta = new Date(b.time).getTime() - new Date(a.time).getTime();
-        return timeDelta || String(b.id).localeCompare(String(a.id));
+        // Numeric id tie-break (ids past 999,999 grow wider; a string compare
+        // would mis-order them).
+        return timeDelta || (Number.parseInt(b.id, 10) || 0) - (Number.parseInt(a.id, 10) || 0);
       });
 
       if (selectedProject !== "all") {
         feed.append(...newestFirst.map((message) => renderMessageCard(message, false)));
+        feed.scrollTop = previousScroll;
         return;
       }
 
@@ -1863,6 +1895,7 @@ export const dashboardHtml = `<!doctype html>
         group.append(head, ...groupMessages.map((message) => renderMessageCard(message, false)));
         feed.append(group);
       }
+      feed.scrollTop = previousScroll;
     }
 
     let lastSnapshot;

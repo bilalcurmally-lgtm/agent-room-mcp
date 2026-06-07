@@ -148,11 +148,39 @@ describe("AgentRoomStore", () => {
     await expect(readFile(join(store.roomDir, "tasks.json"), "utf8")).resolves.toBe("{ bad json");
   });
 
-  it("rejects malformed message lines with recovery guidance", async () => {
+  it("quarantines a corrupt message line instead of bricking all reads", async () => {
     const store = await makeStore();
-    await writeFile(join(store.roomDir, "messages.jsonl"), "{\"id\":\"000001\"}\nnot-json\n", "utf8");
+    await writeFile(
+      join(store.roomDir, "messages.jsonl"),
+      "{\"id\":\"000001\",\"from\":\"codex\",\"to\":\"opus\",\"topic\":\"A1\"}\nnot-json\n{\"id\":\"000002\",\"from\":\"user\",\"to\":\"opus\",\"topic\":\"B2\"}\n",
+      "utf8"
+    );
 
-    await expect(store.readMessages({ agent: "codex" })).rejects.toThrow(/Failed to parse messages\.jsonl line 2/);
+    // The bad middle line is skipped; the valid lines on either side still read.
+    expect(await store.readMessages({ agent: "opus" })).toMatchObject([
+      { id: "000001", topic: "A1" },
+      { id: "000002", topic: "B2" }
+    ]);
+
+    // And a new post derives its id from the highest existing id (not the line
+    // count), so the skipped line can't cause a duplicate id.
+    const posted = await store.postMessage(message({ from: "opus", to: "codex", topic: "C3" }));
+    expect(posted.id).toBe("000003");
+  });
+
+  it("filters sinceId numerically so ids past 999,999 still compare correctly", async () => {
+    const store = await makeStore();
+    await writeFile(
+      join(store.roomDir, "messages.jsonl"),
+      "{\"id\":\"999999\",\"from\":\"codex\",\"to\":\"opus\",\"topic\":\"old\"}\n{\"id\":\"1000000\",\"from\":\"user\",\"to\":\"opus\",\"topic\":\"new\"}\n",
+      "utf8"
+    );
+
+    // Lexicographically "1000000" < "999999"; numerically it is newer and must
+    // pass the sinceId filter.
+    expect(await store.readMessages({ agent: "opus", sinceId: "999999" })).toMatchObject([
+      { id: "1000000", topic: "new" }
+    ]);
   });
 
   it("preserves valid task storage when an atomic write fails", async () => {

@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RoomAgent, RoomMessage } from "./store.js";
+import { messageIdValue } from "./store.js";
 import { formatRoomPingText, messageTargetsAgent } from "./routing.js";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
@@ -56,10 +57,11 @@ export function selectUnreadMessages(
   options: { agent: string; lastSeen: string; limit: number }
 ): RoomMessage[] {
   const lastSeen = options.lastSeen ?? "";
+  const lastSeenValue = messageIdValue(lastSeen);
   return messages
-    .filter((message) => message.id > lastSeen)
+    .filter((message) => messageIdValue(message.id) > lastSeenValue)
     .filter((message) => messageTargetsAgent(message, options.agent))
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => messageIdValue(a.id) - messageIdValue(b.id))
     .slice(0, options.limit);
 }
 
