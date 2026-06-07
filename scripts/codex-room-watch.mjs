@@ -35,7 +35,17 @@ export function buildCodexWakeArgs({ repoRoot, roomDir, messageIds }) {
     "If the new messages are informational only, post only a concise acknowledgment when useful and do not invent work.",
     "Do not respond to your own messages."
   ].join(" ");
-  return ["exec", "-C", repoRoot, "--json", prompt];
+  return [
+    "exec",
+    "-C",
+    repoRoot,
+    "--sandbox",
+    "workspace-write",
+    "--config",
+    'windows.sandbox="unelevated"',
+    "--json",
+    prompt
+  ];
 }
 
 export async function runCodexWake({

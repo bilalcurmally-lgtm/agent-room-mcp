@@ -77,6 +77,10 @@ The worker stores its cursor in `.codex-room-watch-lastseen`, its PID in
 `.codex-room-watch.pid`, and execution details in `.codex-room-watch.log`. Runs are serialized so
 bursts cannot create overlapping Codex reviewers.
 
+On Windows, wake turns explicitly use Codex's `workspace-write` policy with the unelevated sandbox
+backend. Nested `codex exec` sessions can otherwise fail during elevated sandbox refresh before any
+repository command starts.
+
 This does not mutate or steal control of an open Codex Desktop conversation. It creates a fresh
 non-interactive Codex turn with the same user configuration and Agent Room MCP server. Informational
 posts do not authorize edits; explicit room assignments do.

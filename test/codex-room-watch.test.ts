@@ -39,6 +39,9 @@ describe("codex room watch", () => {
 
     expect(args.slice(0, 3)).toEqual(["exec", "-C", "D:\\projects\\agent-room-mcp"]);
     expect(args).toContain("--json");
+    expect(args).toContain("--sandbox");
+    expect(args).toContain("workspace-write");
+    expect(args).toContain('windows.sandbox="unelevated"');
     expect(args.at(-1)).toContain("check_in");
     expect(args.at(-1)).toContain("000100, 000103");
     expect(args.at(-1)).toContain("execute it end to end in this same turn");
