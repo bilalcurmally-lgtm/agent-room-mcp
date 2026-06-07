@@ -531,6 +531,7 @@ export const dashboardHtml = `<!doctype html>
       flex: 0 0 auto;
     }
     #message-form { margin: 0; }
+    .composer-chat { gap: 6px; }
     .composer-foot {
       display: flex;
       align-items: center;
@@ -539,6 +540,16 @@ export const dashboardHtml = `<!doctype html>
       gap: 6px 12px;
     }
     .composer-foot .composer-hint { margin: 0; }
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .composer-actions #message-submit {
+      margin-left: auto;
+      min-width: 96px;
+    }
     .composer-identity {
       display: flex;
       align-items: center;
@@ -564,15 +575,17 @@ export const dashboardHtml = `<!doctype html>
     }
     .composer-advanced.is-open { display: grid; }
     .composer-toggle {
-      justify-self: start;
-      min-height: 30px;
-      padding: 4px 10px;
-      font-size: 0.75rem;
-      border-color: var(--line);
-      background: var(--soft);
+      min-height: auto;
+      padding: 0;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
       color: var(--muted);
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
-    .composer-toggle:hover { color: var(--ink); border-color: var(--accent); }
+    .composer-toggle:hover { color: var(--accent-ink); background: transparent; }
     .task-inline-form {
       display: grid;
       gap: 8px;
@@ -604,9 +617,10 @@ export const dashboardHtml = `<!doctype html>
     }
     textarea { resize: vertical; min-height: 96px; }
     #message {
-      min-height: 132px;
+      min-height: 96px;
       max-height: 38dvh;
       line-height: 1.5;
+      resize: none;
     }
     button {
       border: 1px solid var(--accent);
@@ -780,13 +794,16 @@ export const dashboardHtml = `<!doctype html>
           <div id="workspace-banner" class="workspace-banner warn" hidden></div>
         </details>
         <div id="feed" class="feed"></div>
-        <form id="message-form" class="composer">
-            <textarea id="message" rows="2" placeholder="Tell the room... use @all, @codex, @grok, @claude"></textarea>
+        <form id="message-form" class="composer composer-chat">
+            <textarea id="message" rows="3" placeholder="Message the room… @all @codex @grok @claude"></textarea>
             <div class="composer-foot">
               <p class="composer-hint" id="composer-route-hint">Enter to send · Shift+Enter for a new line · @mentions route alerts</p>
               <label class="composer-identity">Posting as <input id="composer-user" placeholder="Your name" title="Your display name on this browser only — saved locally, not shared with agents" /></label>
             </div>
-            <button type="button" class="composer-toggle" id="composer-toggle">More options</button>
+            <div class="composer-actions">
+              <button type="button" class="composer-toggle" id="composer-toggle" aria-expanded="false" aria-controls="composer-advanced">More options</button>
+              <button id="message-submit" type="submit">Send</button>
+            </div>
             <div class="composer-advanced" id="composer-advanced">
               <div class="template-presets" aria-label="Message templates">
                 <button type="button" data-message-template="assign">Assign work</button>
@@ -816,7 +833,6 @@ export const dashboardHtml = `<!doctype html>
               <label>Attach files <input id="message-files" type="file" multiple accept="text/*,image/*,.pdf,.json,.zip" /></label>
             </div>
             <div id="message-attachments-pending" class="attachment-pending" hidden></div>
-            <button id="message-submit" type="submit">Tell all agents</button>
           </form>
       </section>
     </main>
@@ -1373,11 +1389,12 @@ export const dashboardHtml = `<!doctype html>
     function updateMessageSubmitLabel() {
       const mentionHint = previewMentionRoute(messageInput.value);
       if (mentionHint) {
-        messageSubmit.textContent = "Send mention";
+        messageSubmit.textContent = "Send";
         if (composerRouteHint) composerRouteHint.textContent = mentionHint + " · Enter to send";
         return;
       }
-      messageSubmit.textContent = "Tell " + routeLabel(messageTo.value);
+      const route = (messageTo.value || "all").trim();
+      messageSubmit.textContent = route === "all" ? "Send" : "Send to " + routeLabel(route);
       if (composerRouteHint) {
         composerRouteHint.textContent = "Enter to send · Shift+Enter for a new line · @mentions route alerts";
       }
@@ -1461,7 +1478,10 @@ export const dashboardHtml = `<!doctype html>
       const composerToggle = document.getElementById("composer-toggle");
       const composerAdvanced = document.getElementById("composer-advanced");
       composerAdvanced?.classList.toggle("is-open", open);
-      if (composerToggle) composerToggle.textContent = open ? "Fewer options" : "More options";
+      if (composerToggle) {
+        composerToggle.textContent = open ? "Fewer options" : "More options";
+        composerToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      }
     }
 
     function applyMessageTemplate(template) {
@@ -2252,6 +2272,9 @@ export const dashboardHtml = `<!doctype html>
       loadSnapshot();
     });
 
+    composerUserInput.addEventListener("input", () => {
+      savePosterName(composerUserInput.value);
+    });
     composerUserInput.addEventListener("change", () => {
       savePosterName(composerUserInput.value);
     });

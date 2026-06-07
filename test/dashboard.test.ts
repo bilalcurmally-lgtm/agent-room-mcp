@@ -240,7 +240,7 @@ describe("dashboard server", () => {
     const html = await fetch(server.url).then((res) => res.text());
 
     expect(html).toContain("Agent Room");
-    expect(html).toContain("Tell the room");
+    expect(html).toContain("Message the room");
     expect(html).toContain("Project");
     expect(html).toContain("Create task");
     expect(html).toContain("Record decision");
@@ -849,7 +849,14 @@ describe("dashboard server", () => {
     expect(html).toContain("function applyMessageTemplate(template)");
     expect(html).toContain("function setComposerAdvancedOpen(open)");
     expect(html).toContain("setComposerAdvancedOpen(true)");
-    expect(html).toContain("min-height: 132px");
+    expect(html).toContain("min-height: 96px");
+    expect(html).toContain('class="composer composer-chat"');
+    expect(html).toContain('id="composer-advanced"');
+    const messageFormHtml = html.match(/<form id="message-form"[\s\S]*?<\/form>/)?.[0] ?? "";
+    expect(messageFormHtml.indexOf('id="composer-advanced"')).toBeGreaterThan(-1);
+    expect(messageFormHtml.indexOf('data-message-template="assign"')).toBeGreaterThan(
+      messageFormHtml.indexOf('id="composer-advanced"')
+    );
     expect(html).toContain("function updateMessageSubmitLabel()");
     expect(html).toContain("applyFilters({ agent: currentUserIdentity()");
     expect(html).toContain("Enter to send");

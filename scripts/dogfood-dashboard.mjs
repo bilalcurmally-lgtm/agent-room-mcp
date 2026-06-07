@@ -9,7 +9,7 @@ const outDir = process.env.DOGFOOD_OUT ?? join(process.cwd(), ".review-shots", "
 await mkdir(outDir, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const findings = [];
 
 function note(id, severity, title, detail) {
@@ -20,6 +20,33 @@ await page.goto(url, { waitUntil: "networkidle" });
 await page.waitForTimeout(2000);
 
 await page.screenshot({ path: join(outDir, "01-initial.png"), fullPage: false });
+
+// Composer default: chat box only — no template buttons or advanced fields visible
+const advanced = page.locator("#composer-advanced");
+const templateInAdvanced = page.locator("#composer-advanced .template-presets");
+const templateOutside = page.locator("#message-form > .template-presets");
+if ((await templateOutside.count()) > 0) {
+  note("C1", "P1", "Template presets visible outside More options", "move into #composer-advanced");
+}
+if (!(await advanced.evaluate((el) => getComputedStyle(el).display === "none"))) {
+  note("C2", "P1", "Composer advanced panel open by default", "should be collapsed");
+}
+if ((await templateInAdvanced.count()) === 0) {
+  note("C3", "P1", "Template presets missing from advanced panel", "");
+}
+const attachVisible = await page.locator('label:has(#message-files)').isVisible().catch(() => false);
+if (attachVisible) {
+  note("C4", "P1", "Attach files visible in default composer", "should be inside More options");
+}
+await page.locator("#message-form").screenshot({ path: join(outDir, "05-composer-default.png") });
+
+await page.locator("#composer-toggle").click();
+await page.waitForTimeout(200);
+if (!(await advanced.evaluate((el) => getComputedStyle(el).display !== "none"))) {
+  note("C5", "P1", "More options did not reveal advanced panel", "");
+}
+await page.locator("#message-form").screenshot({ path: join(outDir, "06-composer-expanded.png") });
+await page.locator("#composer-toggle").click();
 
 // Layout: page should not scroll; feed and side panel scroll internally
 const pageScroll = await page.evaluate(() => ({
