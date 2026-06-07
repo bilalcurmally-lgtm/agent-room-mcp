@@ -30,7 +30,7 @@ describe("codex room watch", () => {
     expect(selectCodexWakeMessages(messages, "000100")).toMatchObject([{ id: "000103" }]);
   });
 
-  it("builds a non-interactive Codex turn that checks in without editing", () => {
+  it("builds a non-interactive Codex turn that can execute assigned work", () => {
     const args = buildCodexWakeArgs({
       repoRoot: "D:\\projects\\agent-room-mcp",
       roomDir: "D:\\projects\\.agent-room",
@@ -41,7 +41,9 @@ describe("codex room watch", () => {
     expect(args).toContain("--json");
     expect(args.at(-1)).toContain("check_in");
     expect(args.at(-1)).toContain("000100, 000103");
-    expect(args.at(-1)).toContain("Do not edit files");
+    expect(args.at(-1)).toContain("execute it end to end in this same turn");
+    expect(args.at(-1)).toContain("You may edit files");
+    expect(args.at(-1)).not.toContain("Do not edit files");
   });
 
   it("advances its cursor and invokes one wake for new routed messages", async () => {

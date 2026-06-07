@@ -20,7 +20,7 @@ export const AGENT_WAKE_PROFILES = [
     hook: null,
     wakeCheck: "node scripts/room-ping.mjs --agent codex-desktop",
     watcher: "node scripts/codex-room-watch.mjs",
-    notes: "A persistent file-event watcher launches a read-only non-interactive Codex turn, which checks in and responds through MCP. Toast/inbox delivery remains optional."
+    notes: "A persistent file-event watcher launches a non-interactive Codex turn, which checks in and executes room-authorized work end to end. Toast/inbox delivery remains optional."
   },
   {
     agent: "cursor",

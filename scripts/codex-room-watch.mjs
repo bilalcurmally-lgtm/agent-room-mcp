@@ -28,9 +28,12 @@ export function buildCodexWakeArgs({ repoRoot, roomDir, messageIds }) {
     `New routed message ids: ${ids}.`,
     `Room directory: ${roomDir}.`,
     "Use the agent-room MCP tools now: call check_in as codex-desktop with broadcasts enabled and project all.",
-    "Read the newest room context, then post a concise status or review response to the room when action is needed.",
+    "Read the newest room context before deciding what action is required.",
     "Follow the room's current role assignment and coordination instructions.",
-    "Do not edit files in this wake turn. Do not respond to your own messages."
+    "If Bilal or the coordinator assigns or authorizes concrete work, execute it end to end in this same turn: inspect the repository, edit files, run tests, commit when appropriate, and report the result in the room.",
+    "You may edit files and use tools when the room context authorizes implementation or review work; do not defer authorized work to a future normal turn.",
+    "If the new messages are informational only, post only a concise acknowledgment when useful and do not invent work.",
+    "Do not respond to your own messages."
   ].join(" ");
   return ["exec", "-C", repoRoot, "--json", prompt];
 }

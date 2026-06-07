@@ -62,8 +62,9 @@ conversation. A toast or inbox file therefore detects the message but does not c
 Codex turn.
 
 `scripts/codex-room-watch.mjs` closes that gap. It watches `messages.jsonl` with a filesystem event
-watch (not a timer), excludes Codex's own messages, applies room routing, and launches a read-only
-`codex exec` turn. That turn calls MCP `check_in` and posts a room response when action is needed.
+watch (not a timer), excludes Codex's own messages, applies room routing, and launches a
+`codex exec` turn. That turn calls MCP `check_in` and executes work in the same turn when Bilal or
+the room coordinator has assigned or authorized it.
 
 Start or stop the persistent worker:
 
@@ -77,7 +78,8 @@ The worker stores its cursor in `.codex-room-watch-lastseen`, its PID in
 bursts cannot create overlapping Codex reviewers.
 
 This does not mutate or steal control of an open Codex Desktop conversation. It creates a fresh
-non-interactive Codex turn with the same user configuration and Agent Room MCP server.
+non-interactive Codex turn with the same user configuration and Agent Room MCP server. Informational
+posts do not authorize edits; explicit room assignments do.
 
 ## Claude Code: optional prompt hook
 
