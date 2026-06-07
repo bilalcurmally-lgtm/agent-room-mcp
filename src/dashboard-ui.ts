@@ -246,10 +246,10 @@ export const dashboardHtml = `<!doctype html>
     details.feed-section {
       display: flex;
       flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      /* Contain feed scroll inside the section instead of growing past the viewport. */
-      overflow: hidden;
+      /* Header only (title + filter chips + workspace banner). #feed is now a
+         sibling, not a child, so it gets a real bounded height from .main-feed
+         and scrolls reliably — a <details> is an unreliable flex parent. */
+      flex: 0 0 auto;
     }
     details.feed-section > summary.section-block {
       list-style: none;
@@ -299,11 +299,20 @@ export const dashboardHtml = `<!doctype html>
       display: grid;
       gap: 8px;
       padding: 12px 16px;
-      overflow: auto;
+      overflow-y: scroll;
+      scrollbar-gutter: stable;
       flex: 1;
       min-height: 0;
       align-content: start;
     }
+    .feed::-webkit-scrollbar { width: 10px; }
+    .feed::-webkit-scrollbar-track { background: var(--soft-2); border-radius: 5px; }
+    .feed::-webkit-scrollbar-thumb {
+      background: var(--line);
+      border-radius: 5px;
+      border: 2px solid var(--soft-2);
+    }
+    .feed::-webkit-scrollbar-thumb:hover { background: var(--faint); }
     .feed-project-group {
       display: grid;
       gap: 8px;
@@ -519,6 +528,7 @@ export const dashboardHtml = `<!doctype html>
       padding: 12px 16px 16px;
       border-top: 1px solid var(--line);
       background: var(--surface-raised);
+      flex: 0 0 auto;
     }
     #message-form { margin: 0; }
     .composer-foot {
@@ -768,22 +778,22 @@ export const dashboardHtml = `<!doctype html>
             <button type="button" data-filter-preset="clear">Clear</button>
           </div>
           <div id="workspace-banner" class="workspace-banner warn" hidden></div>
-          <div id="feed" class="feed"></div>
         </details>
+        <div id="feed" class="feed"></div>
         <form id="message-form" class="composer">
-            <div class="template-presets" aria-label="Message templates">
-              <button type="button" data-message-template="assign">Assign work</button>
-              <button type="button" data-message-template="review">Request review</button>
-              <button type="button" data-message-template="status">Ask status</button>
-              <button type="button" data-message-template="blocked">Report blocker</button>
-            </div>
             <textarea id="message" rows="2" placeholder="Tell the room... use @all, @codex, @grok, @claude"></textarea>
             <div class="composer-foot">
               <p class="composer-hint" id="composer-route-hint">Enter to send · Shift+Enter for a new line · @mentions route alerts</p>
-              <label class="composer-identity">Posting as <input id="composer-user" placeholder="user" title="Your room name — appears as the message author" /></label>
+              <label class="composer-identity">Posting as <input id="composer-user" placeholder="Your name" title="Your display name on this browser only — saved locally, not shared with agents" /></label>
             </div>
             <button type="button" class="composer-toggle" id="composer-toggle">More options</button>
             <div class="composer-advanced" id="composer-advanced">
+              <div class="template-presets" aria-label="Message templates">
+                <button type="button" data-message-template="assign">Assign work</button>
+                <button type="button" data-message-template="review">Request review</button>
+                <button type="button" data-message-template="status">Ask status</button>
+                <button type="button" data-message-template="blocked">Report blocker</button>
+              </div>
               <div class="composer-row">
                 <label>Route to <input id="message-to" value="all" /></label>
                 <div class="route-presets" aria-label="Route presets">
@@ -1007,6 +1017,7 @@ export const dashboardHtml = `<!doctype html>
     const staleQuiet = document.getElementById("stale-quiet");
 
     const PANEL_KEY = "agent-room-panel-open";
+    const POSTER_STORAGE_KEY = "agent-room-dashboard-poster";
 
     function setPanelOpen(open) {
       document.body.classList.toggle("panel-collapsed", !open);
@@ -1241,23 +1252,27 @@ export const dashboardHtml = `<!doctype html>
       loadSnapshot();
     }
 
-    function currentUserIdentity() {
-      return composerUserInput.value.trim() || currentUserInput.value.trim() || lastSnapshot?.config?.currentUser || "user";
+    function readStoredPoster() {
+      return localStorage.getItem(POSTER_STORAGE_KEY)?.trim() || "";
     }
 
-    async function saveCurrentUser(value) {
-      const currentUser = (value ?? currentUserInput.value).trim();
-      if (!currentUser) return;
-      // Keep the composer "Posting as" field and the filter-drawer "You" field
-      // in sync — they are the same room identity.
-      currentUserInput.value = currentUser;
-      composerUserInput.value = currentUser;
-      await fetch("/api/config", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ currentUser })
-      });
-      if (lastSnapshot?.config) lastSnapshot.config.currentUser = currentUser;
+    function applyPosterFields(name) {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      currentUserInput.value = trimmed;
+      composerUserInput.value = trimmed;
+    }
+
+    function savePosterName(value) {
+      const trimmed = (value ?? composerUserInput.value).trim();
+      if (!trimmed) return;
+      // Per-browser only — never write poster identity to shared room config.
+      localStorage.setItem(POSTER_STORAGE_KEY, trimmed);
+      applyPosterFields(trimmed);
+    }
+
+    function currentUserIdentity() {
+      return readStoredPoster() || composerUserInput.value.trim() || currentUserInput.value.trim() || "user";
     }
 
     function applyFilterPreset(preset) {
@@ -2049,9 +2064,11 @@ export const dashboardHtml = `<!doctype html>
         roomClock.title = snapshot.roomTime.timezone + " " + snapshot.roomTime.utcOffset;
       }
       if (snapshot.config?.staleTaskHours) staleThreshold.value = String(snapshot.config.staleTaskHours);
-      if (snapshot.config?.currentUser) {
-        currentUserInput.value = snapshot.config.currentUser;
-        composerUserInput.value = snapshot.config.currentUser;
+      const storedPoster = readStoredPoster();
+      if (storedPoster) {
+        applyPosterFields(storedPoster);
+      } else if (snapshot.config?.currentUser) {
+        applyPosterFields(snapshot.config.currentUser);
       }
       enforceProtocol.checked = Boolean(snapshot.config?.enforceProtocol);
 
@@ -2226,14 +2243,13 @@ export const dashboardHtml = `<!doctype html>
       loadSnapshot();
     });
 
-    currentUserInput.addEventListener("change", async () => {
-      await saveCurrentUser(currentUserInput.value);
-      await loadSnapshot();
+    currentUserInput.addEventListener("change", () => {
+      savePosterName(currentUserInput.value);
+      loadSnapshot();
     });
 
-    composerUserInput.addEventListener("change", async () => {
-      await saveCurrentUser(composerUserInput.value);
-      await loadSnapshot();
+    composerUserInput.addEventListener("change", () => {
+      savePosterName(composerUserInput.value);
     });
 
     filterAgentInput.addEventListener("input", () => {

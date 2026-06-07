@@ -307,7 +307,10 @@ describe("dashboard server", () => {
     expect(html).toContain(".feed {");
     expect(html).toContain("min-height: 0");
     expect(html).toContain("details.feed-section");
-    expect(html).toContain("overflow: hidden");
+    expect(html).toContain("flex: 0 0 auto");
+    expect(html).toContain("overflow-y: scroll");
+    expect(html).toContain("POSTER_STORAGE_KEY");
+    expect(html).toContain('id="feed" class="feed"');
   });
 
   it("exposes room notification status from the dashboard API", async () => {

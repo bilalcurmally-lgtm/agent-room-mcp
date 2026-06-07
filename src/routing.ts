@@ -38,11 +38,7 @@ function registeredAgentMatch(registeredAgentIds: readonly string[], target: str
 
 /** Prefer grok-cli when @grok / "To Grok" is used but only grok-cli has joined. */
 function resolveGrokAgentId(registeredAgentIds: readonly string[]): string | undefined {
-  return (
-    registeredAgentMatch(registeredAgentIds, "grok") ??
-    registeredAgentMatch(registeredAgentIds, "grok-cli") ??
-    registeredAgentIds.find((id) => id.toLowerCase().startsWith("grok"))
-  );
+  return registeredAgentMatch(registeredAgentIds, "grok") ?? registeredAgentMatch(registeredAgentIds, "grok-cli");
 }
 
 export function resolveAgentId(token: string, registeredAgentIds: readonly string[]): string | undefined {
@@ -73,11 +69,12 @@ export function resolveMessageRoute(input: {
   registeredAgentIds: readonly string[];
 }): ResolvedRoute {
   const explicitTo = input.to?.trim();
+  const normalizedExplicit = normalizeRouteTarget(explicitTo || "all", input.registeredAgentIds);
   const tokens = parseMentionTokens(input.body);
 
   if (!tokens.length) {
     return {
-      to: normalizeRouteTarget(explicitTo || "all", input.registeredAgentIds),
+      to: normalizedExplicit,
       parsedMentions: []
     };
   }
@@ -100,14 +97,14 @@ export function resolveMessageRoute(input: {
 
   if (uniqueAgents.length > 1) {
     return {
-      to: explicitTo && explicitTo !== "all" ? explicitTo : "all",
+      to: normalizedExplicit !== "all" ? normalizedExplicit : "all",
       mentions: uniqueAgents,
       parsedMentions: tokens
     };
   }
 
   return {
-    to: explicitTo || "all",
+    to: normalizedExplicit,
     parsedMentions: tokens
   };
 }

@@ -33,6 +33,28 @@ describe("routing", () => {
     expect(normalizeRouteTarget("grok", joined)).toBe("grok-cli");
   });
 
+  it("normalizes explicit grok target when the body has unknown mention tokens", () => {
+    const joined = ["codex-desktop", "grok-cli"];
+    expect(
+      resolveMessageRoute({
+        to: "grok",
+        body: "@nobody hello",
+        registeredAgentIds: joined
+      })
+    ).toMatchObject({ to: "grok-cli", parsedMentions: ["nobody"] });
+    expect(
+      resolveMessageRoute({
+        to: "grok",
+        body: "@codex @grok hello",
+        registeredAgentIds: joined
+      })
+    ).toMatchObject({
+      to: "grok-cli",
+      mentions: ["codex-desktop", "grok-cli"],
+      parsedMentions: ["codex", "grok"]
+    });
+  });
+
   it("ignores @mentions for agents that have not joined the room", () => {
     expect(resolveAgentId("grok", ["codex-desktop"])).toBeUndefined();
     expect(
