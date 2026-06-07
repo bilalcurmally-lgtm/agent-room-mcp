@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const AGENT = "codex-desktop";
+const TRUSTED_WORK_ASSIGNERS = new Set(["Bilal", "claude-opus"]);
 const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 
@@ -21,7 +22,13 @@ export function selectCodexWakeMessages(messages, lastSeen = "") {
   });
 }
 
-export function buildCodexWakeArgs({ repoRoot, roomDir, messageIds }) {
+export function codexWakeSandboxMode(messages) {
+  return messages.some((message) => TRUSTED_WORK_ASSIGNERS.has(message.from))
+    ? "danger-full-access"
+    : "workspace-write";
+}
+
+export function buildCodexWakeArgs({ repoRoot, roomDir, messageIds, sandboxMode }) {
   const ids = messageIds.join(", ");
   const prompt = [
     "Agent Room wake event.",
@@ -40,9 +47,10 @@ export function buildCodexWakeArgs({ repoRoot, roomDir, messageIds }) {
     "-C",
     repoRoot,
     "--sandbox",
-    "workspace-write",
-    "--config",
-    'windows.sandbox="unelevated"',
+    sandboxMode,
+    ...(sandboxMode === "workspace-write"
+      ? ["--config", 'windows.sandbox="unelevated"']
+      : []),
     "--json",
     prompt
   ];
@@ -52,11 +60,12 @@ export async function runCodexWake({
   repoRoot = REPO_ROOT,
   roomDir = DEFAULT_ROOM_DIR,
   messageIds,
+  sandboxMode = "workspace-write",
   command = process.env.CODEX_CLI_PATH ?? "codex",
   logPath = join(roomDir, ".codex-room-watch.log")
 }) {
   await mkdir(dirname(logPath), { recursive: true });
-  const args = buildCodexWakeArgs({ repoRoot, roomDir, messageIds });
+  const args = buildCodexWakeArgs({ repoRoot, roomDir, messageIds, sandboxMode });
   const result = await new Promise((resolveRun, reject) => {
     const child = spawn(command, args, {
       cwd: repoRoot,
@@ -119,7 +128,8 @@ export async function startCodexRoomWatch({
             repoRoot,
             roomDir,
             command,
-            messageIds: selected.map((message) => message.id)
+            messageIds: selected.map((message) => message.id),
+            sandboxMode: codexWakeSandboxMode(selected)
           });
         }
       } while (queued);

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildCodexWakeArgs,
+  codexWakeSandboxMode,
   selectCodexWakeMessages,
   startCodexRoomWatch
 } from "../scripts/codex-room-watch.mjs";
@@ -34,7 +35,8 @@ describe("codex room watch", () => {
     const args = buildCodexWakeArgs({
       repoRoot: "D:\\projects\\agent-room-mcp",
       roomDir: "D:\\projects\\.agent-room",
-      messageIds: ["000100", "000103"]
+      messageIds: ["000100", "000103"],
+      sandboxMode: "workspace-write"
     });
 
     expect(args.slice(0, 3)).toEqual(["exec", "-C", "D:\\projects\\agent-room-mcp"]);
@@ -47,6 +49,13 @@ describe("codex room watch", () => {
     expect(args.at(-1)).toContain("execute it end to end in this same turn");
     expect(args.at(-1)).toContain("You may edit files");
     expect(args.at(-1)).not.toContain("Do not edit files");
+  });
+
+  it("grants full execution only for trusted work assigners", () => {
+    expect(codexWakeSandboxMode([{ from: "Bilal" }])).toBe("danger-full-access");
+    expect(codexWakeSandboxMode([{ from: "claude-opus" }])).toBe("danger-full-access");
+    expect(codexWakeSandboxMode([{ from: "grok-cli" }])).toBe("workspace-write");
+    expect(codexWakeSandboxMode([{ from: "wake-test" }])).toBe("workspace-write");
   });
 
   it("advances its cursor and invokes one wake for new routed messages", async () => {
