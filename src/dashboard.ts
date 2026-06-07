@@ -94,7 +94,11 @@ export async function startDashboardServer(options: DashboardOptions): Promise<D
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 0;
   const store = await AgentRoomStore.open(options.roomDir);
-  const enableNotifications = options.enableNotifications ?? process.env.VITEST !== "true";
+  // Notifications fire an OS-level wake command (a PowerShell toast on Windows)
+  // on every tick that finds unread, which is noisy. Keep them OFF unless the
+  // operator explicitly opts in with --notify, so just opening the dashboard to
+  // read the room never spams the desktop.
+  const enableNotifications = options.enableNotifications ?? false;
   const notifier = enableNotifications
     ? new RoomNotifier({
         roomDir: options.roomDir,
@@ -153,7 +157,8 @@ export function resolveDashboardOptions(args: readonly string[], env: NodeJS.Pro
   return {
     roomDir,
     port,
-    openBrowser: !args.includes("--no-open")
+    openBrowser: !args.includes("--no-open"),
+    enableNotifications: args.includes("--notify")
   };
 }
 

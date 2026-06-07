@@ -41,7 +41,13 @@ export const dashboardHtml = `<!doctype html>
     html { min-width: 320px; }
     body {
       margin: 0;
-      min-height: 100dvh;
+      /* Lock the app to the viewport so the feed and side panel scroll inside
+         their own regions and the composer/topbar stay pinned, instead of the
+         whole page scrolling. */
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       font-family: Inter, system-ui, sans-serif;
       background: var(--bg);
       color: var(--ink);
@@ -107,7 +113,11 @@ export const dashboardHtml = `<!doctype html>
     .app-shell {
       display: grid;
       grid-template-columns: 72px minmax(0, 1fr);
-      min-height: calc(100dvh - 53px);
+      /* Constrain the single row to the shell height (not the feed's content
+         height) so the columns scroll internally and the composer stays pinned. */
+      grid-template-rows: minmax(0, 1fr);
+      flex: 1;
+      min-height: 0;
     }
     body.panel-open-shell .app-shell {
       grid-template-columns: 72px minmax(0, 1fr) minmax(300px, 360px);
@@ -508,6 +518,29 @@ export const dashboardHtml = `<!doctype html>
       background: var(--surface-raised);
     }
     #message-form { margin: 0; }
+    .composer-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+    }
+    .composer-foot .composer-hint { margin: 0; }
+    .composer-identity {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .composer-identity input {
+      width: auto;
+      min-height: 28px;
+      max-width: 160px;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
     .composer-advanced {
       display: none;
       gap: 8px;
@@ -733,7 +766,8 @@ export const dashboardHtml = `<!doctype html>
           </div>
           <div id="workspace-banner" class="workspace-banner warn" hidden></div>
           <div id="feed" class="feed"></div>
-          <form id="message-form" class="composer">
+        </details>
+        <form id="message-form" class="composer">
             <div class="template-presets" aria-label="Message templates">
               <button type="button" data-message-template="assign">Assign work</button>
               <button type="button" data-message-template="review">Request review</button>
@@ -741,7 +775,10 @@ export const dashboardHtml = `<!doctype html>
               <button type="button" data-message-template="blocked">Report blocker</button>
             </div>
             <textarea id="message" rows="2" placeholder="Tell the room... use @all, @codex, @grok, @claude"></textarea>
-            <p class="composer-hint" id="composer-route-hint">Enter to send · Shift+Enter for a new line · @mentions route alerts</p>
+            <div class="composer-foot">
+              <p class="composer-hint" id="composer-route-hint">Enter to send · Shift+Enter for a new line · @mentions route alerts</p>
+              <label class="composer-identity">Posting as <input id="composer-user" placeholder="user" title="Your room name — appears as the message author" /></label>
+            </div>
             <button type="button" class="composer-toggle" id="composer-toggle">More options</button>
             <div class="composer-advanced" id="composer-advanced">
               <div class="composer-row">
@@ -768,7 +805,6 @@ export const dashboardHtml = `<!doctype html>
             <div id="message-attachments-pending" class="attachment-pending" hidden></div>
             <button id="message-submit" type="submit">Tell all agents</button>
           </form>
-        </details>
       </section>
     </main>
     <aside class="panel" id="side-panel">
@@ -905,6 +941,7 @@ export const dashboardHtml = `<!doctype html>
     const workspaceBanner = document.getElementById("workspace-banner");
     const searchInput = document.getElementById("search");
     const currentUserInput = document.getElementById("current-user");
+    const composerUserInput = document.getElementById("composer-user");
     const filterAgentInput = document.getElementById("filter-agent");
     const filterSinceInput = document.getElementById("filter-since");
     const filterUntilInput = document.getElementById("filter-until");
@@ -1202,12 +1239,16 @@ export const dashboardHtml = `<!doctype html>
     }
 
     function currentUserIdentity() {
-      return currentUserInput.value.trim() || lastSnapshot?.config?.currentUser || "user";
+      return composerUserInput.value.trim() || currentUserInput.value.trim() || lastSnapshot?.config?.currentUser || "user";
     }
 
-    async function saveCurrentUser() {
-      const currentUser = currentUserInput.value.trim();
+    async function saveCurrentUser(value) {
+      const currentUser = (value ?? currentUserInput.value).trim();
       if (!currentUser) return;
+      // Keep the composer "Posting as" field and the filter-drawer "You" field
+      // in sync — they are the same room identity.
+      currentUserInput.value = currentUser;
+      composerUserInput.value = currentUser;
       await fetch("/api/config", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1974,7 +2015,10 @@ export const dashboardHtml = `<!doctype html>
         roomClock.title = snapshot.roomTime.timezone + " " + snapshot.roomTime.utcOffset;
       }
       if (snapshot.config?.staleTaskHours) staleThreshold.value = String(snapshot.config.staleTaskHours);
-      if (snapshot.config?.currentUser) currentUserInput.value = snapshot.config.currentUser;
+      if (snapshot.config?.currentUser) {
+        currentUserInput.value = snapshot.config.currentUser;
+        composerUserInput.value = snapshot.config.currentUser;
+      }
       enforceProtocol.checked = Boolean(snapshot.config?.enforceProtocol);
 
       renderFeedMessages(snapshot.messages);
@@ -2149,7 +2193,12 @@ export const dashboardHtml = `<!doctype html>
     });
 
     currentUserInput.addEventListener("change", async () => {
-      await saveCurrentUser();
+      await saveCurrentUser(currentUserInput.value);
+      await loadSnapshot();
+    });
+
+    composerUserInput.addEventListener("change", async () => {
+      await saveCurrentUser(composerUserInput.value);
       await loadSnapshot();
     });
 
@@ -2211,29 +2260,46 @@ export const dashboardHtml = `<!doctype html>
       const body = messageInput.value.trim();
       const to = messageTo.value.trim() || "all";
       if (!body) return;
+      const from = currentUserIdentity();
       const status = messageStatus.value.trim();
       const phase = messagePhase.value.trim();
       const next = messageNext.value.trim();
-      await fetch("/api/messages", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          body,
-          to,
-          project: projectForWrite(),
-          status: status || undefined,
-          phase: phase || undefined,
-          next: next || undefined,
-          attachmentIds: pendingAttachmentIds.length ? pendingAttachmentIds : undefined
-        })
-      });
+      const attachmentIds = pendingAttachmentIds.length ? pendingAttachmentIds.slice() : undefined;
+
+      // Clear the composer immediately so Enter feels instant — the network
+      // round-trip below happens after the UI has already reset. Restore the
+      // text only if the post actually fails.
       messageInput.value = "";
       messageStatus.value = "";
       messagePhase.value = "";
       messageNext.value = "";
       pendingAttachmentIds = [];
       renderPendingAttachments();
+
+      try {
+        const response = await fetch("/api/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            from,
+            body,
+            to,
+            project: projectForWrite(),
+            status: status || undefined,
+            phase: phase || undefined,
+            next: next || undefined,
+            attachmentIds
+          })
+        });
+        if (!response.ok) throw new Error("post failed: " + response.status);
+      } catch (error) {
+        messageInput.value = body;
+        return;
+      }
       await loadSnapshot();
+      // Feed is newest-first, so scrolling to the top reveals the message that
+      // was just sent without the user hunting for it.
+      feed.scrollTop = 0;
     }
 
     messageForm.addEventListener("submit", async (event) => {
