@@ -292,6 +292,9 @@ describe("dashboard server", () => {
     expect(html).toContain('data-filter-preset="review"');
     expect(html).toContain('data-filter-preset="clear"');
     expect(html).toContain("applyFilterPreset");
+    expect(html).toContain("activeFilterPreset === preset");
+    expect(html).toContain("syncActiveFilterPreset");
+    expect(html).toContain('button.dataset.active = "true"');
     expect(html).toContain("section-overview");
     expect(html).toContain("room-status");
     expect(html).toContain("renderStatus");

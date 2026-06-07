@@ -966,6 +966,7 @@ export const dashboardHtml = `<!doctype html>
     let filterAgent = "";
     let filterSince = "";
     let filterUntil = "";
+    let activeFilterPreset = "";
     const projectSelect = document.getElementById("project");
     const workspaceBanner = document.getElementById("workspace-banner");
     const searchInput = document.getElementById("search");
@@ -1259,12 +1260,24 @@ export const dashboardHtml = `<!doctype html>
       filterUntilInput.value = filterUntil;
     }
 
-    function applyFilters(next) {
+    function syncActiveFilterPreset() {
+      document.querySelectorAll("[data-filter-preset]").forEach((button) => {
+        if (button.dataset.filterPreset === activeFilterPreset && activeFilterPreset !== "clear") {
+          button.dataset.active = "true";
+        } else {
+          button.removeAttribute("data-active");
+        }
+      });
+    }
+
+    function applyFilters(next, preset = "") {
       searchQuery = next.search ?? searchQuery;
       filterAgent = next.agent ?? filterAgent;
       filterSince = next.since ?? filterSince;
       filterUntil = next.until ?? filterUntil;
+      activeFilterPreset = preset;
       syncFilterInputs();
+      syncActiveFilterPreset();
       loadSnapshot();
     }
 
@@ -1302,20 +1315,24 @@ export const dashboardHtml = `<!doctype html>
 
     function applyFilterPreset(preset) {
       const now = new Date();
+      if (activeFilterPreset === preset && preset !== "clear") {
+        applyFilters({ search: "", agent: "", since: "", until: "" });
+        return;
+      }
       if (preset === "today") {
-        applyFilters({ since: toDateInputValue(now), until: "" });
+        applyFilters({ search: "", agent: "", since: toDateInputValue(now), until: "" }, preset);
         return;
       }
       if (preset === "week") {
-        applyFilters({ since: toDateInputValue(startOfWeek(now)), until: "" });
+        applyFilters({ search: "", agent: "", since: toDateInputValue(startOfWeek(now)), until: "" }, preset);
         return;
       }
       if (preset === "mine") {
-        applyFilters({ agent: currentUserIdentity(), search: "", since: "", until: "" });
+        applyFilters({ agent: currentUserIdentity(), search: "", since: "", until: "" }, preset);
         return;
       }
       if (preset === "review") {
-        applyFilters({ search: "review", agent: "", since: "", until: "" });
+        applyFilters({ search: "review", agent: "", since: "", until: "" }, preset);
         return;
       }
       if (preset === "clear") {
@@ -2264,6 +2281,8 @@ export const dashboardHtml = `<!doctype html>
 
     searchInput.addEventListener("input", () => {
       searchQuery = searchInput.value.trim();
+      activeFilterPreset = "";
+      syncActiveFilterPreset();
       loadSnapshot();
     });
 
@@ -2281,16 +2300,22 @@ export const dashboardHtml = `<!doctype html>
 
     filterAgentInput.addEventListener("input", () => {
       filterAgent = filterAgentInput.value.trim();
+      activeFilterPreset = "";
+      syncActiveFilterPreset();
       loadSnapshot();
     });
 
     filterSinceInput.addEventListener("change", () => {
       filterSince = filterSinceInput.value;
+      activeFilterPreset = "";
+      syncActiveFilterPreset();
       loadSnapshot();
     });
 
     filterUntilInput.addEventListener("change", () => {
       filterUntil = filterUntilInput.value;
+      activeFilterPreset = "";
+      syncActiveFilterPreset();
       loadSnapshot();
     });
 
