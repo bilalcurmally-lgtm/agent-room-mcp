@@ -1,4 +1,5 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -761,9 +762,48 @@ describe("dashboard server", () => {
 
     const html = await fetch(`${server.url}/`).then((res) => res.text());
     expect(html).toContain("task-actions");
-    expect(html).toContain("task-update-branch");
-    expect(html).toContain("task-update-commit");
+    // U4: status is changed inline on the card; branch/commit live in the inline
+    // Note form. The old "type the task id into a form" controls are gone.
+    expect(html).toContain("task-status-select");
+    expect(html).toContain("Branch (optional)");
+    expect(html).not.toContain("task-update-id");
     expect(html).toContain("function taskCard(task)");
+  });
+
+  it("guards loopback writes against cross-origin and rebound hosts (B4)", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const payload = JSON.stringify({ from: "user", to: "all", topic: "ping", body: "hi" });
+    const rawPost = (headers: Record<string, string>) =>
+      new Promise<number>((resolve, reject) => {
+        const target = new URL(`${server.url}/api/messages`);
+        const req = httpRequest(
+          {
+            hostname: target.hostname,
+            port: target.port,
+            path: target.pathname,
+            method: "POST",
+            headers: { "content-type": "application/json", "content-length": Buffer.byteLength(payload), ...headers }
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          }
+        );
+        req.on("error", reject);
+        req.end(payload);
+      });
+
+    // A cross-site page's write carries a foreign Origin -> rejected.
+    expect(await rawPost({ origin: "https://evil.example" })).toBe(403);
+    // A rebound DNS name shows up as a non-loopback Host -> rejected.
+    expect(await rawPost({ host: "evil.example" })).toBe(403);
+    // The dashboard's own same-origin write is allowed.
+    expect(await rawPost({ origin: server.url })).toBe(201);
+    // A local non-browser tool sends no Origin -> allowed.
+    expect(await rawPost({})).toBe(201);
   });
 
   it("serves guided composer workflow controls in the dashboard HTML", async () => {

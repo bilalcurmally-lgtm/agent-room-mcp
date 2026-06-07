@@ -105,8 +105,10 @@ export async function startDashboardServer(options: DashboardOptions): Promise<D
     : undefined;
   notifier?.start();
 
+  const enforceLoopback = isLoopbackHost(host);
   const server = createServer(async (request, response) => {
     try {
+      assertTrustedRequest(request, enforceLoopback);
       await routeRequest(store, notifier ?? null, request, response);
     } catch (error) {
       if (error instanceof HttpError) {
@@ -821,6 +823,52 @@ class HttpError extends Error {
     message: string
   ) {
     super(message);
+  }
+}
+
+const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+function isLoopbackHost(value: string | undefined): boolean {
+  if (!value) return false;
+  return LOOPBACK_HOSTNAMES.has(value.trim().toLowerCase());
+}
+
+function hostnameFromHostHeader(hostHeader: string | undefined): string | undefined {
+  if (!hostHeader) return undefined;
+  const value = hostHeader.trim();
+  if (value.startsWith("[")) {
+    const end = value.indexOf("]");
+    return end >= 0 ? value.slice(1, end) : value;
+  }
+  const colon = value.lastIndexOf(":");
+  return colon >= 0 ? value.slice(0, colon) : value;
+}
+
+function hostnameFromOrigin(origin: string | undefined): string | undefined {
+  if (!origin) return undefined;
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+// B4: the dashboard binds to loopback by default but has no auth, so any other
+// page or process on the machine could otherwise drive its /api/* writes. The
+// browser always sends a Host header (so a rebound DNS name is caught) and, on a
+// cross-site write, an Origin header (so CSRF is caught). Non-browser local tools
+// (curl, scripts) send no Origin and are trusted. Only enforced when bound to
+// loopback, so an explicit network bind is left to the operator.
+function assertTrustedRequest(request: IncomingMessage, enforceLoopback: boolean): void {
+  if (!enforceLoopback) return;
+  if (!isLoopbackHost(hostnameFromHostHeader(request.headers.host))) {
+    throw new HttpError(403, "Dashboard only accepts requests addressed to a loopback host.");
+  }
+  const method = request.method ?? "GET";
+  if (method === "GET" || method === "HEAD") return;
+  const origin = request.headers.origin;
+  if (origin && !isLoopbackHost(hostnameFromOrigin(origin))) {
+    throw new HttpError(403, "Cross-origin write rejected.");
   }
 }
 

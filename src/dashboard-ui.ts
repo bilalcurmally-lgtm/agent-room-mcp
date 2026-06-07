@@ -605,8 +605,9 @@ export const dashboardHtml = `<!doctype html>
       background: var(--danger-soft);
       color: var(--danger);
     }
-    .task-actions { margin-top: 12px; }
+    .task-actions { margin-top: 12px; align-items: center; }
     .task-actions button { min-height: 32px; font-size: 12px; padding: 5px 9px; }
+    .task-status-select { width: auto; min-height: 32px; font-size: 12px; padding: 4px 8px; }
     #refresh { width: 40px; padding: 0; font-size: 17px; }
     #room-clock { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--faint); white-space: nowrap; }
     .workspace-banner {
@@ -837,20 +838,6 @@ export const dashboardHtml = `<!doctype html>
               </div>
               <button type="submit">Create task</button>
             </form>
-            <form id="task-update-form" class="composer">
-              <input id="task-update-id" placeholder="Task id, e.g. task-000001" />
-              <select id="task-update-status">
-                <option value="open">Open</option>
-                <option value="claimed">Claimed</option>
-                <option value="blocked">Blocked</option>
-                <option value="done">Done</option>
-              </select>
-              <input id="task-update-owner" placeholder="Owner (optional)" />
-              <textarea id="task-update-note" rows="2" placeholder="Task note (optional)"></textarea>
-              <input id="task-update-branch" placeholder="Branch (optional)" />
-              <input id="task-update-commit" placeholder="Commit (optional)" />
-              <button type="submit">Update task</button>
-            </form>
           </div>
         </details>
         <details class="panel-section" id="section-projects" hidden>
@@ -965,13 +952,6 @@ export const dashboardHtml = `<!doctype html>
     const taskTitle = document.getElementById("task-title");
     const taskBody = document.getElementById("task-body");
     const taskOwner = document.getElementById("task-owner");
-    const taskUpdateForm = document.getElementById("task-update-form");
-    const taskUpdateId = document.getElementById("task-update-id");
-    const taskUpdateStatus = document.getElementById("task-update-status");
-    const taskUpdateOwner = document.getElementById("task-update-owner");
-    const taskUpdateNote = document.getElementById("task-update-note");
-    const taskUpdateBranch = document.getElementById("task-update-branch");
-    const taskUpdateCommit = document.getElementById("task-update-commit");
     const decisionForm = document.getElementById("decision-form");
     const decisionTitle = document.getElementById("decision-title");
     const decisionBody = document.getElementById("decision-body");
@@ -1496,15 +1476,6 @@ export const dashboardHtml = `<!doctype html>
       return line;
     }
 
-    function fillTaskUpdateForm(task) {
-      taskUpdateId.value = task.id;
-      taskUpdateStatus.value = task.status;
-      taskUpdateOwner.value = task.owner || "";
-      taskUpdateNote.value = "";
-      taskUpdateBranch.value = "";
-      taskUpdateCommit.value = "";
-    }
-
     async function postTaskUpdate(payload) {
       await fetch("/api/tasks/update", {
         method: "POST",
@@ -1532,34 +1503,20 @@ export const dashboardHtml = `<!doctype html>
       const actions = document.createElement("div");
       actions.className = "task-actions";
 
-      const doneButton = document.createElement("button");
-      doneButton.type = "button";
-      doneButton.textContent = "Done";
-      doneButton.addEventListener("click", () => {
-        appendTaskInlineForm(item, task, {
-          placeholder: "Optional done note",
-          confirmLabel: "Mark done",
-          onSubmit: async (note) => {
-            await postTaskUpdate({ taskId: task.id, status: "done", note: note || undefined });
-          }
-        });
-      });
-
-      const blockedButton = document.createElement("button");
-      blockedButton.type = "button";
-      blockedButton.textContent = "Blocked";
-      blockedButton.addEventListener("click", () => {
-        appendTaskInlineForm(item, task, {
-          placeholder: "Why is this blocked?",
-          confirmLabel: "Mark blocked",
-          onSubmit: async (note) => {
-            await postTaskUpdate({
-              taskId: task.id,
-              status: "blocked",
-              note: note || "Blocked from dashboard."
-            });
-          }
-        });
+      // U4: change status directly on the card. Replaces the old separate
+      // "type the task id into a form" flow.
+      const statusSelect = document.createElement("select");
+      statusSelect.className = "task-status-select";
+      statusSelect.title = "Change status";
+      for (const value of ["open", "claimed", "blocked", "done"]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value.charAt(0).toUpperCase() + value.slice(1);
+        if (value === task.status) option.selected = true;
+        statusSelect.append(option);
+      }
+      statusSelect.addEventListener("change", async () => {
+        await postTaskUpdate({ taskId: task.id, status: statusSelect.value });
       });
 
       const noteButton = document.createElement("button");
@@ -1616,15 +1573,7 @@ export const dashboardHtml = `<!doctype html>
         });
       });
 
-      const editButton = document.createElement("button");
-      editButton.type = "button";
-      editButton.textContent = "Edit";
-      editButton.addEventListener("click", () => {
-        fillTaskUpdateForm(task);
-        setActiveNav("tasks");
-      });
-
-      actions.append(doneButton, blockedButton, noteButton, reassignButton, editButton);
+      actions.append(statusSelect, noteButton, reassignButton);
       item.append(meta);
       appendExpandableBody(
         item,
@@ -2367,30 +2316,6 @@ export const dashboardHtml = `<!doctype html>
       taskBody.value = "";
       taskOwner.value = "";
       await loadSnapshot();
-    });
-
-    taskUpdateForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const taskId = taskUpdateId.value.trim();
-      const status = taskUpdateStatus.value;
-      const owner = taskUpdateOwner.value.trim();
-      const note = taskUpdateNote.value.trim();
-      const branch = taskUpdateBranch.value.trim();
-      const commit = taskUpdateCommit.value.trim();
-      if (!taskId) return;
-      await postTaskUpdate({
-        taskId,
-        status,
-        owner: owner || undefined,
-        note: note || undefined,
-        branch: branch || undefined,
-        commit: commit || undefined
-      });
-      taskUpdateId.value = "";
-      taskUpdateOwner.value = "";
-      taskUpdateNote.value = "";
-      taskUpdateBranch.value = "";
-      taskUpdateCommit.value = "";
     });
 
     decisionForm.addEventListener("submit", async (event) => {
