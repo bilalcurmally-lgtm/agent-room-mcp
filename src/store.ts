@@ -25,6 +25,13 @@ export const STALE_TASK_AFTER_HOURS = 24;
 // dumped into its context on first contact. unreadCount still reports the true total.
 export const DEFAULT_INBOX_LIMIT = 50;
 
+// Cap the stale-item nudges returned by check_in. Without this, every message,
+// task, and decision older than the threshold floods the response (a busy room
+// can surface 50+ ancient "re-check this" notices). We keep the most recently
+// gone-stale items, which are the actionable ones; the *Count fields report the
+// true totals so nothing is silently hidden.
+export const DEFAULT_STALE_LIMIT = 5;
+
 export type AgentId = string;
 export type TaskStatus = "open" | "claimed" | "blocked" | "done";
 
@@ -153,6 +160,11 @@ export interface AgentCheckIn {
   staleTasks: StaleTaskWarning[];
   staleMessages: StaleItemWarning[];
   staleDecisions: StaleItemWarning[];
+  // True totals before the DEFAULT_STALE_LIMIT cap, so a caller knows how many
+  // stale items exist even though only the most recent few are listed.
+  staleTaskCount: number;
+  staleMessageCount: number;
+  staleDecisionCount: number;
   recentDecisions: RoomDecision[];
   status: RoomStatus;
 }
@@ -492,15 +504,18 @@ export class AgentRoomStore {
     const assignedTasks = await this.listTasks({ owner: input.agent, project: input.project });
     const openTasks = await this.listTasks({ status: "open", project: input.project });
     const config = await this.getConfig();
-    const staleTasks = await this.listStaleTasks({ project: input.project, olderThanHours: config.staleTaskHours });
-    const staleMessages = await this.listStaleMessages({
+    const allStaleTasks = await this.listStaleTasks({ project: input.project, olderThanHours: config.staleTaskHours });
+    const allStaleMessages = await this.listStaleMessages({
       project: input.project,
       olderThanHours: config.staleTaskHours
     });
-    const staleDecisions = await this.listStaleDecisions({
+    const allStaleDecisions = await this.listStaleDecisions({
       project: input.project,
       olderThanHours: config.staleTaskHours
     });
+    const staleTasks = mostRecentStale(allStaleTasks, DEFAULT_STALE_LIMIT);
+    const staleMessages = mostRecentStale(allStaleMessages, DEFAULT_STALE_LIMIT);
+    const staleDecisions = mostRecentStale(allStaleDecisions, DEFAULT_STALE_LIMIT);
     const decisions = await this.readDecisions();
     const projectRecord = input.project
       ? (await this.readProjects()).find((project) => project.id === input.project)
@@ -517,6 +532,9 @@ export class AgentRoomStore {
       staleTasks,
       staleMessages,
       staleDecisions,
+      staleTaskCount: allStaleTasks.length,
+      staleMessageCount: allStaleMessages.length,
+      staleDecisionCount: allStaleDecisions.length,
       recentDecisions: decisions.filter((decision) => matchesProject(decision, input.project)),
       status: await this.getRoomStatus()
     };
@@ -1198,6 +1216,16 @@ function filterVisibleMessages(
 
 function matchesProject(item: { project?: string }, project: string | undefined): boolean {
   return !project || item.project === project;
+}
+
+// Keep only the N most recently gone-stale items. The full set is oldest-first
+// and can be huge in a long-lived room; the freshest stale items are the ones
+// worth re-checking, so we surface those and drop the ancient noise.
+function mostRecentStale<T extends { updatedAt: string }>(items: T[], limit: number): T[] {
+  if (items.length <= limit) return items;
+  return [...items]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, limit);
 }
 
 function delay(ms: number): Promise<void> {

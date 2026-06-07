@@ -366,6 +366,34 @@ describe("AgentRoomStore", () => {
     expect(checkIn.staleDecisions).toMatchObject([{ kind: "decision", id: decision.id }]);
   });
 
+  it("caps stale check-in nudges and reports the true totals", async () => {
+    const store = await makeStore();
+    // Seven messages, all long past the stale threshold. Without a cap this would
+    // flood the check_in response with every one of them.
+    const lines = [];
+    for (let i = 1; i <= 7; i += 1) {
+      lines.push(
+        JSON.stringify({
+          id: String(i).padStart(6, "0"),
+          from: "codex",
+          to: "all",
+          topic: `old ${i}`,
+          body: "x",
+          time: `2020-01-01T00:00:0${i}.000Z`
+        })
+      );
+    }
+    await writeFile(join(store.roomDir, "messages.jsonl"), `${lines.join("\n")}\n`, "utf8");
+
+    const checkIn = await store.checkIn({ agent: "opus" });
+
+    expect(checkIn.staleMessages).toHaveLength(5);
+    expect(checkIn.staleMessageCount).toBe(7);
+    // The surfaced ones are the most recently gone stale (newest first).
+    expect(checkIn.staleMessages[0].id).toBe("000007");
+    expect(checkIn.staleMessages.map((warning) => warning.id)).not.toContain("000001");
+  });
+
   it("uses room config for stale task threshold", async () => {
     const store = await makeStore();
     await store.registerAgent(agent({ agent: "codex" }));
