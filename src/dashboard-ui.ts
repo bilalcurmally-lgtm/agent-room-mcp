@@ -449,6 +449,57 @@ export const dashboardHtml = `<!doctype html>
     .follow-up { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
     .follow-up span { font-size: 0.6875rem; padding: 4px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); border: 1px solid oklch(0.38 0.06 255); font-family: "IBM Plex Mono", monospace; }
     .stale-warn .message, .stale-warn .task { border-color: oklch(0.55 0.1 75); background: var(--warn-soft); }
+    /* U6: per-agent identity. --agent* custom props are set inline per card. */
+    .message { border-left: 3px solid var(--agent, var(--line)); }
+    .msg-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 7px;
+    }
+    .agent-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      flex: none;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--agent-ink, var(--ink));
+      background: var(--agent-soft, var(--soft));
+      border: 1px solid var(--agent-line, var(--line));
+    }
+    .msg-author {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--agent-ink, var(--ink));
+    }
+    .msg-route, .msg-meta-faint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: var(--faint);
+    }
+    /* U5: inline protocol-violation tag, where people actually read. */
+    .protocol-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: var(--warn);
+      background: var(--warn-soft);
+      border: 1px solid oklch(0.45 0.08 75);
+      cursor: help;
+    }
     .composer {
       display: grid;
       gap: 8px;
@@ -856,6 +907,10 @@ export const dashboardHtml = `<!doctype html>
     // Signature of the last feed render; lets the auto-refresh skip rebuilding
     // (and thus skip resetting scroll) when nothing in the feed changed.
     let lastFeedSignature = null;
+    // U5: which feed messages violate the protocol, plus the warning detail for
+    // the inline tag's tooltip. Refreshed from each snapshot's protocolWarnings.
+    let nonCompliantMessageIds = new Set();
+    let protocolWarningById = new Map();
     let filterAgent = "";
     let filterSince = "";
     let filterUntil = "";
@@ -1789,28 +1844,80 @@ export const dashboardHtml = `<!doctype html>
       return record ? record.name + " · " + projectId : projectId;
     }
 
+    // Deterministic per-agent hue so "who said what" is scannable at a glance.
+    function agentHue(id) {
+      const key = String(id || "");
+      let hue = 0;
+      for (let i = 0; i < key.length; i++) hue = (hue * 31 + key.charCodeAt(i)) % 360;
+      return hue;
+    }
+
+    function agentInitials(id) {
+      const key = String(id || "").replace(/[^a-zA-Z0-9]+/g, " ").trim();
+      if (!key) return "··";
+      const parts = key.split(/\\s+/);
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+      return key.slice(0, 2).toUpperCase();
+    }
+
+    function applyAgentColors(el, id) {
+      const hue = agentHue(id);
+      el.style.setProperty("--agent", "oklch(0.6 0.12 " + hue + ")");
+      el.style.setProperty("--agent-ink", "oklch(0.8 0.1 " + hue + ")");
+      el.style.setProperty("--agent-soft", "oklch(0.3 0.05 " + hue + ")");
+      el.style.setProperty("--agent-line", "oklch(0.45 0.08 " + hue + ")");
+    }
+
     function renderMessageCard(message, showProject) {
       const item = document.createElement("div");
       item.className = "message";
+      applyAgentColors(item, message.from);
+
       const protocolMeta = [message.phase ? "phase " + message.phase : "", message.status ? "status " + message.status : ""]
         .filter(Boolean)
         .join(" · ");
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.textContent =
-        formatTimestamp(message.time) +
-        " · " +
-        (message.relativeTime || formatRelativeTime(message.time)) +
-        " · " +
-        message.from +
-        " → " +
-        message.to +
-        (showProject ? " · " + projectLabel(message.project) : "") +
-        " · " +
-        message.topic +
-        (protocolMeta ? " · " + protocolMeta : "");
+
+      const head = document.createElement("div");
+      head.className = "msg-head";
+
+      const avatar = document.createElement("span");
+      avatar.className = "agent-avatar";
+      avatar.textContent = agentInitials(message.from);
+      avatar.title = message.from;
+
+      const author = document.createElement("span");
+      author.className = "msg-author";
+      author.textContent = message.from;
+
+      const route = document.createElement("span");
+      route.className = "msg-route";
+      route.textContent = "→ " + message.to;
+
+      const faintBits = [
+        formatTimestamp(message.time),
+        message.relativeTime || formatRelativeTime(message.time),
+        showProject ? projectLabel(message.project) : "",
+        message.topic,
+        protocolMeta
+      ].filter(Boolean).join(" · ");
+      const faint = document.createElement("span");
+      faint.className = "msg-meta-faint";
+      faint.textContent = faintBits;
+
+      head.append(avatar, author, route, faint);
+
+      // U5: surface a protocol violation right on the card, not only in Alerts.
+      if (nonCompliantMessageIds.has(message.id)) {
+        const tag = document.createElement("span");
+        tag.className = "protocol-tag";
+        tag.textContent = "⚠ protocol";
+        const warning = protocolWarningById.get(message.id);
+        tag.title = warning ? warning.message : "Missing protocol fields ([STATUS:]/[NEXT:]).";
+        head.append(tag);
+      }
+
       const nextSuffix = message.next && !/\\[NEXT:/i.test(message.body) ? "\\n\\nNext: " + message.next : "";
-      item.append(meta);
+      item.append(head);
       appendExpandableBody(item, message.body + nextSuffix, 1100, "msg:" + message.id);
       appendAttachmentLinks(item, message.attachments);
       const followUpHints = message.followUpHints || [];
@@ -1902,6 +2009,10 @@ export const dashboardHtml = `<!doctype html>
 
     function renderSnapshot(snapshot) {
       lastSnapshot = snapshot;
+      // Index protocol warnings by message id so the feed can tag offending
+      // cards inline (must happen before renderFeedMessages below).
+      protocolWarningById = new Map((snapshot.protocolWarnings || []).map((warning) => [warning.messageId, warning]));
+      nonCompliantMessageIds = new Set(protocolWarningById.keys());
       renderSelect(snapshot);
       renderWorkspaceBanner(snapshot);
       renderProgress(snapshot.progress);
