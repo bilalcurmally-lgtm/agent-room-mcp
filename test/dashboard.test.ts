@@ -304,6 +304,10 @@ describe("dashboard server", () => {
     expect(html).toContain("renderNotifications");
     expect(html).toContain("loadNotifications");
     expect(html).toContain("To Grok");
+    expect(html).toContain(".feed {");
+    expect(html).toContain("min-height: 0");
+    expect(html).toContain("details.feed-section");
+    expect(html).toContain("overflow: hidden");
   });
 
   it("exposes room notification status from the dashboard API", async () => {
@@ -341,6 +345,28 @@ describe("dashboard server", () => {
 
     const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
     expect(snapshot.messages).toMatchObject([{ to: "grok", body: expect.stringContaining("@grok") }]);
+  });
+
+  it("routes explicit To Grok to grok-cli when only grok-cli has joined", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    await store.registerAgent({ agent: "grok-cli" });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        to: "grok",
+        body: "Direct route preset test",
+        project: "agent-room-mcp"
+      })
+    });
+    expect(response.status).toBe(201);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.messages).toMatchObject([{ to: "grok-cli", body: "Direct route preset test" }]);
   });
 
   it("delivers room notifications to joined agents after posting", async () => {

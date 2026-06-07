@@ -248,6 +248,8 @@ export const dashboardHtml = `<!doctype html>
       flex-direction: column;
       flex: 1;
       min-height: 0;
+      /* Contain feed scroll inside the section instead of growing past the viewport. */
+      overflow: hidden;
     }
     details.feed-section > summary.section-block {
       list-style: none;
@@ -299,6 +301,7 @@ export const dashboardHtml = `<!doctype html>
       padding: 12px 16px;
       overflow: auto;
       flex: 1;
+      min-height: 0;
       align-content: start;
     }
     .feed-project-group {
@@ -1280,9 +1283,32 @@ export const dashboardHtml = `<!doctype html>
       }
     }
 
+    function registeredAgentIds() {
+      return (lastSnapshot?.agents || []).map((agent) => agent.id);
+    }
+
+    function resolveRoutePreset(route) {
+      if (!route || route === "all") return route || "all";
+      const ids = registeredAgentIds();
+      if (route === "grok") {
+        return ids.find((id) => id === "grok-cli") || ids.find((id) => id.startsWith("grok")) || route;
+      }
+      if (ids.includes(route)) return route;
+      const aliases = {
+        codex: "codex-desktop",
+        claude: "claude-opus",
+        cursor: "cursor",
+        grok: "grok",
+        antigravity: "antigravity"
+      };
+      const alias = aliases[route];
+      if (alias && ids.includes(alias)) return alias;
+      return route;
+    }
+
     function applyRoutePreset(route) {
       if (!route) return;
-      messageTo.value = route;
+      messageTo.value = resolveRoutePreset(route);
       updateMessageSubmitLabel();
     }
 
@@ -1291,7 +1317,7 @@ export const dashboardHtml = `<!doctype html>
       if (trimmed === "all") return "all agents";
       if (trimmed === "codex-desktop") return "Codex";
       if (trimmed === "claude-opus") return "Claude";
-      if (trimmed === "grok") return "Grok";
+      if (trimmed === "grok" || trimmed === "grok-cli" || trimmed.startsWith("grok")) return "Grok";
       if (trimmed === "antigravity") return "Antigravity";
       return trimmed;
     }
@@ -1300,6 +1326,7 @@ export const dashboardHtml = `<!doctype html>
       const tokens = (text.match(/@([a-zA-Z][a-zA-Z0-9_-]*)/g) || []).map((token) => token.slice(1).toLowerCase());
       if (!tokens.length) return "";
       if (tokens.includes("all")) return "Routing @all to every registered agent";
+      const ids = registeredAgentIds();
       const aliases = {
         codex: "codex-desktop",
         claude: "claude-opus",
@@ -1307,7 +1334,14 @@ export const dashboardHtml = `<!doctype html>
         grok: "grok",
         antigravity: "antigravity"
       };
-      const resolved = [...new Set(tokens.map((token) => aliases[token] || token))];
+      const resolved = [...new Set(tokens.map((token) => {
+        if (token === "grok") {
+          return ids.find((id) => id === "grok-cli") || ids.find((id) => id.startsWith("grok")) || aliases.grok;
+        }
+        const alias = aliases[token];
+        if (alias && ids.includes(alias)) return alias;
+        return ids.find((id) => id.toLowerCase() === token) || alias || token;
+      }))];
       if (resolved.length === 1) return "Routing to " + routeLabel(resolved[0]);
       return "Routing to " + resolved.map((id) => routeLabel(id)).join(", ");
     }

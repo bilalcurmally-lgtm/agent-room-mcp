@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   messageTargetsAgent,
+  normalizeRouteTarget,
   parseMentionTokens,
   resolveAgentId,
   resolveMessageRoute
@@ -18,6 +19,18 @@ describe("routing", () => {
     expect(resolveAgentId("grok", registered)).toBe("grok");
     expect(resolveAgentId("antigravity", registered)).toBe("antigravity");
     expect(resolveAgentId("codex-desktop", registered)).toBe("codex-desktop");
+  });
+
+  it("resolves @grok to grok-cli when only grok-cli has joined", () => {
+    const joined = ["codex-desktop", "claude-opus", "grok-cli", "antigravity"];
+    expect(resolveAgentId("grok", joined)).toBe("grok-cli");
+    expect(
+      resolveMessageRoute({
+        body: "@grok please review",
+        registeredAgentIds: joined
+      })
+    ).toMatchObject({ to: "grok-cli", parsedMentions: ["grok"] });
+    expect(normalizeRouteTarget("grok", joined)).toBe("grok-cli");
   });
 
   it("ignores @mentions for agents that have not joined the room", () => {

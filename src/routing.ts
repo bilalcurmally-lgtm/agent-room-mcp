@@ -32,14 +32,39 @@ export function parseMentionTokens(text: string): string[] {
   return tokens;
 }
 
+function registeredAgentMatch(registeredAgentIds: readonly string[], target: string): string | undefined {
+  return registeredAgentIds.find((id) => id.toLowerCase() === target.toLowerCase());
+}
+
+/** Prefer grok-cli when @grok / "To Grok" is used but only grok-cli has joined. */
+function resolveGrokAgentId(registeredAgentIds: readonly string[]): string | undefined {
+  return (
+    registeredAgentMatch(registeredAgentIds, "grok") ??
+    registeredAgentMatch(registeredAgentIds, "grok-cli") ??
+    registeredAgentIds.find((id) => id.toLowerCase().startsWith("grok"))
+  );
+}
+
 export function resolveAgentId(token: string, registeredAgentIds: readonly string[]): string | undefined {
   const normalized = token.toLowerCase();
   if (AGENT_ALIASES[normalized]) {
     const alias = AGENT_ALIASES[normalized];
     if (alias === "all") return "all";
-    return registeredAgentIds.some((id) => id.toLowerCase() === alias) ? alias : undefined;
+    const exact = registeredAgentMatch(registeredAgentIds, alias);
+    if (exact) return exact;
+    if (normalized === "grok") return resolveGrokAgentId(registeredAgentIds);
+    return undefined;
   }
-  return registeredAgentIds.find((id) => id.toLowerCase() === normalized);
+  const direct = registeredAgentMatch(registeredAgentIds, normalized);
+  if (direct) return direct;
+  if (normalized === "grok") return resolveGrokAgentId(registeredAgentIds);
+  return undefined;
+}
+
+export function normalizeRouteTarget(to: string, registeredAgentIds: readonly string[]): string {
+  const trimmed = to.trim();
+  if (!trimmed || trimmed === "all") return trimmed || "all";
+  return resolveAgentId(trimmed, registeredAgentIds) ?? trimmed;
 }
 
 export function resolveMessageRoute(input: {
@@ -52,7 +77,7 @@ export function resolveMessageRoute(input: {
 
   if (!tokens.length) {
     return {
-      to: explicitTo || "all",
+      to: normalizeRouteTarget(explicitTo || "all", input.registeredAgentIds),
       parsedMentions: []
     };
   }
