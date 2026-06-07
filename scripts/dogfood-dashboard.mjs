@@ -72,12 +72,10 @@ if (await feedScroll.count()) {
   }
 }
 
-// Composer identity field
+// Composer identity field — do not write a test name; that pollutes Bilal's localStorage.
 const postingAs = page.locator("#composer-user");
 if ((await postingAs.count()) === 0) {
   note("L5", "P1", "Missing Posting as field", "composer-user not found");
-} else {
-  await postingAs.fill("GrokTest");
 }
 
 // Instant clear on Enter

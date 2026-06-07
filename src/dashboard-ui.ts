@@ -1252,6 +1252,8 @@ export const dashboardHtml = `<!doctype html>
       loadSnapshot();
     }
 
+    let posterSeeded = false;
+
     function readStoredPoster() {
       return localStorage.getItem(POSTER_STORAGE_KEY)?.trim() || "";
     }
@@ -1261,6 +1263,13 @@ export const dashboardHtml = `<!doctype html>
       if (!trimmed) return;
       currentUserInput.value = trimmed;
       composerUserInput.value = trimmed;
+    }
+
+    function seedPosterOnce() {
+      if (posterSeeded) return;
+      posterSeeded = true;
+      const stored = readStoredPoster();
+      if (stored) applyPosterFields(stored);
     }
 
     function savePosterName(value) {
@@ -2064,12 +2073,7 @@ export const dashboardHtml = `<!doctype html>
         roomClock.title = snapshot.roomTime.timezone + " " + snapshot.roomTime.utcOffset;
       }
       if (snapshot.config?.staleTaskHours) staleThreshold.value = String(snapshot.config.staleTaskHours);
-      const storedPoster = readStoredPoster();
-      if (storedPoster) {
-        applyPosterFields(storedPoster);
-      } else if (snapshot.config?.currentUser) {
-        applyPosterFields(snapshot.config.currentUser);
-      }
+      seedPosterOnce();
       enforceProtocol.checked = Boolean(snapshot.config?.enforceProtocol);
 
       renderFeedMessages(snapshot.messages);

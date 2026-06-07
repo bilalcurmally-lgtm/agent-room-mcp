@@ -310,6 +310,8 @@ describe("dashboard server", () => {
     expect(html).toContain("flex: 0 0 auto");
     expect(html).toContain("overflow-y: scroll");
     expect(html).toContain("POSTER_STORAGE_KEY");
+    expect(html).toContain("posterSeeded");
+    expect(html).toContain("seedPosterOnce");
     expect(html).toContain('id="feed" class="feed"');
   });
 
