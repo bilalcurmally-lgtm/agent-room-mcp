@@ -26,6 +26,8 @@ import { defaultWakeCommand, RoomNotifier } from "./room-notify.js";
 import { protocolWarningsForMessages, type ProtocolWarning } from "./protocol.js";
 import { createRoomTime, type RoomTime } from "./time.js";
 
+const DASHBOARD_ALERT_SECTION_LIMIT = 5;
+
 export interface DashboardOptions {
   roomDir: string;
   port?: number;
@@ -500,10 +502,19 @@ async function createSnapshot(
     projectRecords,
     messages: enrichMessages(filterSearch(filteredMessages, filters.search, messageSearchText), roomTime),
     tasks: filterSearch(filteredTasks, filters.search, taskSearchText),
-    staleTasks: filterSearch(filteredStaleTasks, filters.search, staleTaskSearchText),
-    staleMessages: filterSearch(filteredStaleMessages, filters.search, staleItemSearchText),
-    staleDecisions: filterSearch(filteredStaleDecisions, filters.search, staleItemSearchText),
-    protocolWarnings: filterSearch(filteredProtocolWarnings, filters.search, protocolWarningSearchText),
+    staleTasks: capRecentAlerts(filterSearch(filteredStaleTasks, filters.search, staleTaskSearchText), staleTaskUpdatedTime),
+    staleMessages: capRecentAlerts(
+      filterSearch(filteredStaleMessages, filters.search, staleItemSearchText),
+      staleItemUpdatedTime
+    ),
+    staleDecisions: capRecentAlerts(
+      filterSearch(filteredStaleDecisions, filters.search, staleItemSearchText),
+      staleItemUpdatedTime
+    ),
+    protocolWarnings: capRecentAlerts(
+      filterSearch(filteredProtocolWarnings, filters.search, protocolWarningSearchText),
+      protocolWarningTime
+    ),
     decisions: filterSearch(filteredDecisions, filters.search, decisionSearchText),
     agents: agents.map(({ id, displayName, role, lastReadMessageId, registeredAt, updatedAt }) => ({
       id,
@@ -541,6 +552,23 @@ function buildWorkspaceInfo(
     name: activeProject,
     registered: false
   };
+}
+
+function capRecentAlerts<T>(items: T[], timeValues: (item: T) => string[]): T[] {
+  if (items.length <= DASHBOARD_ALERT_SECTION_LIMIT) return items;
+  return [...items]
+    .sort((a, b) => latestTimeMs(b, timeValues) - latestTimeMs(a, timeValues))
+    .slice(0, DASHBOARD_ALERT_SECTION_LIMIT);
+}
+
+function latestTimeMs<T>(item: T, timeValues: (item: T) => string[]): number {
+  return Math.max(
+    0,
+    ...timeValues(item).map((value) => {
+      const time = new Date(value).getTime();
+      return Number.isNaN(time) ? 0 : time;
+    })
+  );
 }
 
 function createDateRange(since: string, until: string): DateRange {

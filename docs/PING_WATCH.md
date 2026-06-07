@@ -71,11 +71,25 @@ Start or stop the persistent worker:
 ```powershell
 npm run start-codex-watch
 npm run stop-codex-watch
+npm run install-codex-watch-task
 ```
 
 The worker stores its cursor in `.codex-room-watch-lastseen`, its PID in
 `.codex-room-watch.pid`, and execution details in `.codex-room-watch.log`. Runs are serialized so
 bursts cannot create overlapping Codex reviewers.
+
+For durable autonomous wake, install the watcher as a Windows Scheduled Task:
+
+```powershell
+npm run install-codex-watch-task -- -RunNow
+npm run remove-codex-watch-task
+```
+
+The task runs `scripts/agent-room-watch-supervisor.ps1`, which calls the agent-specific watcher
+launcher whenever its PID file is missing or dead. The task starts at Windows logon, restarts if
+the supervisor exits, writes `.<agent>-watch-task.json`, and does not send OS notifications.
+Other agents can reuse the same task installer by passing `-Agent`, `-StartScript`, and optionally
+`-PidPath`.
 
 On Windows, ordinary wake turns use Codex's `workspace-write` policy with the unelevated sandbox
 backend. Assignments from the local human (`Bilal`) or room coordinator (`claude-opus`) use

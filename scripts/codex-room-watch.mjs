@@ -9,6 +9,7 @@ const AGENT = "codex-desktop";
 const TRUSTED_WORK_ASSIGNERS = new Set(["Bilal", "claude-opus"]);
 const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
+const DEFAULT_WAKE_TIMEOUT_MS = Number(process.env.CODEX_ROOM_WAKE_TIMEOUT_MS ?? 120_000);
 
 export function selectCodexWakeMessages(messages, lastSeen = "") {
   const lastSeenValue = messageIdValue(lastSeen);
@@ -62,7 +63,8 @@ export async function runCodexWake({
   messageIds,
   sandboxMode = "workspace-write",
   command = process.env.CODEX_CLI_PATH ?? "codex",
-  logPath = join(roomDir, ".codex-room-watch.log")
+  logPath = join(roomDir, ".codex-room-watch.log"),
+  timeoutMs = DEFAULT_WAKE_TIMEOUT_MS
 }) {
   await mkdir(dirname(logPath), { recursive: true });
   const args = buildCodexWakeArgs({ repoRoot, roomDir, messageIds, sandboxMode });
@@ -81,8 +83,21 @@ export async function runCodexWake({
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
+    const timeout =
+      timeoutMs > 0
+        ? setTimeout(() => {
+            child.kill("SIGTERM");
+            reject(new Error(`Codex wake timed out after ${timeoutMs}ms`));
+          }, timeoutMs)
+        : undefined;
+    const clearWakeTimeout = () => {
+      if (timeout) clearTimeout(timeout);
+    };
     child.once("error", reject);
-    child.once("exit", (code) => resolveRun({ code: code ?? 1, stdout, stderr }));
+    child.once("exit", (code) => {
+      clearWakeTimeout();
+      resolveRun({ code: code ?? 1, stdout, stderr });
+    });
   });
   await writeFile(
     logPath,
@@ -113,7 +128,7 @@ export async function startCodexRoomWatch({
 
   const drain = () => {
     queued = true;
-    activeDrain = activeDrain.then(async () => {
+    activeDrain = activeDrain.catch(() => undefined).then(async () => {
       do {
         queued = false;
         const messages = await readMessages(messagesPath);
@@ -124,13 +139,17 @@ export async function startCodexRoomWatch({
           await writeFile(cursorPath, `${lastSeen}\n`, "utf8");
         }
         if (selected.length > 0) {
-          await wake({
-            repoRoot,
-            roomDir,
-            command,
-            messageIds: selected.map((message) => message.id),
-            sandboxMode: codexWakeSandboxMode(selected)
-          });
+          try {
+            await wake({
+              repoRoot,
+              roomDir,
+              command,
+              messageIds: selected.map((message) => message.id),
+              sandboxMode: codexWakeSandboxMode(selected)
+            });
+          } catch (error) {
+            await logWatchError(roomDir, error);
+          }
         }
       } while (queued);
     });
@@ -138,15 +157,17 @@ export async function startCodexRoomWatch({
   };
 
   const watcher = watch(messagesPath, { persistent: true }, () => {
-    void drain().catch(async (error) => {
-      await writeFile(
-        join(roomDir, ".codex-room-watch.log"),
-        `${new Date().toISOString()} error=${error instanceof Error ? error.stack : String(error)}\n`,
-        { encoding: "utf8", flag: "a" }
-      );
-    });
+    void drain().catch((error) => logWatchError(roomDir, error));
   });
   return { close: () => watcher.close(), drain };
+}
+
+async function logWatchError(roomDir, error) {
+  await writeFile(
+    join(roomDir, ".codex-room-watch.log"),
+    `${new Date().toISOString()} error=${error instanceof Error ? error.stack : String(error)}\n`,
+    { encoding: "utf8", flag: "a" }
+  );
 }
 
 async function readMessages(path) {

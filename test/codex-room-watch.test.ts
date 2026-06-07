@@ -88,4 +88,41 @@ describe("codex room watch", () => {
 
     expect(wakes).toEqual([["000003"]]);
   });
+
+  it("continues watching after a wake command fails", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "codex-room-watch-"));
+    const messagesPath = join(roomDir, "messages.jsonl");
+    await writeFile(
+      messagesPath,
+      `${JSON.stringify({ id: "000001", from: "user", to: "all", body: "old" })}\n`,
+      "utf8"
+    );
+    const wakes: string[][] = [];
+    let attempts = 0;
+    const watcher = await startCodexRoomWatch({
+      roomDir,
+      repoRoot: process.cwd(),
+      wake: async ({ messageIds }: { messageIds: string[] }) => {
+        attempts += 1;
+        wakes.push(messageIds);
+        if (attempts === 1) throw new Error("simulated wake failure");
+      }
+    });
+
+    await appendFile(
+      messagesPath,
+      `${JSON.stringify({ id: "000002", from: "user", to: "codex-desktop", body: "first" })}\n`,
+      "utf8"
+    );
+    await watcher.drain();
+    await appendFile(
+      messagesPath,
+      `${JSON.stringify({ id: "000003", from: "user", to: "codex-desktop", body: "second" })}\n`,
+      "utf8"
+    );
+    await watcher.drain();
+    watcher.close();
+
+    expect(wakes).toEqual([["000002"], ["000003"]]);
+  });
 });

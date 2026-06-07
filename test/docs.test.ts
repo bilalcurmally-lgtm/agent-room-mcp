@@ -52,5 +52,6 @@ describe("documentation", () => {
     expect(backlog).toContain("Priority 5 - Ping/Watch Reliability");
     expect(pkg).toContain("dogfood-ping-watch");
     expect(pkg).toContain("start-codex-watch");
+    expect(pkg).toContain("install-codex-watch-task");
   });
 });

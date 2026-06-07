@@ -137,6 +137,31 @@ describe("dashboard server", () => {
     ]);
   });
 
+  it("caps dashboard protocol alerts to the newest actionable warnings", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const warningIds: string[] = [];
+    for (let index = 0; index < 7; index += 1) {
+      const message = await store.postMessage({
+        from: "codex-desktop",
+        to: "claude-opus",
+        topic: `Protocol warning ${index}`,
+        body: `Missing protocol fields ${index}`,
+        project: "agent-room-mcp"
+      });
+      warningIds.push(message.id);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp`).then((res) => res.json());
+    expect(snapshot.protocolWarnings).toHaveLength(5);
+    expect(snapshot.protocolWarnings.map((warning: { messageId: string }) => warning.messageId)).toEqual(
+      warningIds.slice(-5).reverse()
+    );
+  });
+
   it("accepts structured protocol fields on dashboard messages", async () => {
     const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
     const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
