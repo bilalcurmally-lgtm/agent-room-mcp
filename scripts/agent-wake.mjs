@@ -16,11 +16,11 @@ export const AGENT_WAKE_PROFILES = [
   {
     agent: "codex-desktop",
     client: "Codex",
-    primary: "notifier",
+    primary: "event-watch+codex-exec",
     hook: null,
     wakeCheck: "node scripts/room-ping.mjs --agent codex-desktop",
-    watcher: "toast+inbox",
-    notes: "Global notifier delivers toast/inbox while the dashboard is running; Codex should run its wakeCheck when alerted. External room-watch is optional redundancy."
+    watcher: "node scripts/codex-room-watch.mjs",
+    notes: "A persistent file-event watcher launches a read-only non-interactive Codex turn, which checks in and responds through MCP. Toast/inbox delivery remains optional."
   },
   {
     agent: "cursor",

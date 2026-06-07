@@ -46,8 +46,11 @@ describe("documentation", () => {
 
     expect(pingWatch).toContain("wake-agent.ps1");
     expect(pingWatch).toContain("codex-desktop");
+    expect(pingWatch).toContain("codex-room-watch.mjs");
+    expect(pingWatch).toContain("codex exec");
     expect(pingWatch).toContain("dogfood-ping-watch");
     expect(backlog).toContain("Priority 5 - Ping/Watch Reliability");
     expect(pkg).toContain("dogfood-ping-watch");
+    expect(pkg).toContain("start-codex-watch");
   });
 });

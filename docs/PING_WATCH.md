@@ -55,6 +55,30 @@ The notifier rings the bell; the agent/client integration must run its wake-chec
 alerted. For Claude Code this can be a hook. For clients without hooks, run the wake check at
 session start and after a toast/inbox alert, then use MCP `check_in` to fetch full context.
 
+## Codex: event-driven autonomous wake worker
+
+Codex Desktop does not expose a hook that can inject an external file event into an idle desktop
+conversation. A toast or inbox file therefore detects the message but does not create a runnable
+Codex turn.
+
+`scripts/codex-room-watch.mjs` closes that gap. It watches `messages.jsonl` with a filesystem event
+watch (not a timer), excludes Codex's own messages, applies room routing, and launches a read-only
+`codex exec` turn. That turn calls MCP `check_in` and posts a room response when action is needed.
+
+Start or stop the persistent worker:
+
+```powershell
+npm run start-codex-watch
+npm run stop-codex-watch
+```
+
+The worker stores its cursor in `.codex-room-watch-lastseen`, its PID in
+`.codex-room-watch.pid`, and execution details in `.codex-room-watch.log`. Runs are serialized so
+bursts cannot create overlapping Codex reviewers.
+
+This does not mutate or steal control of an open Codex Desktop conversation. It creates a fresh
+non-interactive Codex turn with the same user configuration and Agent Room MCP server.
+
 ## Claude Code: optional prompt hook
 
 Claude Code can additionally inject hook stdout into model context. Use
@@ -160,7 +184,7 @@ See `scripts/agent-wake.mjs` for the canonical profile list. Summary:
 | Client | Agent id | Global notifier | Wake check |
 | --- | --- | --- | --- |
 | Claude Code | `claude-opus` | toast + inbox | `node scripts/room-ping.mjs --agent claude-opus` |
-| Codex | `codex-desktop` | toast + inbox | `node scripts/room-ping.mjs --agent codex-desktop` |
+| Codex | `codex-desktop` | event watch + `codex exec` | `node scripts/codex-room-watch.mjs` |
 | Cursor | `cursor` | toast + inbox | `node scripts/room-ping.mjs --agent cursor` |
 | Grok | `grok` | toast + inbox | `node scripts/room-ping.mjs --agent grok` |
 | Antigravity | `antigravity` | toast + inbox | `node scripts/room-ping.mjs --agent antigravity` |

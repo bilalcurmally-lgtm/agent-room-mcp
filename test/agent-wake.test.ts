@@ -18,4 +18,12 @@ describe("agent wake profiles", () => {
     expect(matrix).toContain("node scripts/room-ping.mjs --agent codex-desktop");
     expect(matrix).toContain("node scripts/room-ping.mjs --agent grok");
   });
+
+  it("uses the event-driven Codex worker instead of a toast-only profile", () => {
+    const codex = AGENT_WAKE_PROFILES.find((profile) => profile.agent === "codex-desktop");
+    expect(codex).toMatchObject({
+      primary: "event-watch+codex-exec",
+      watcher: "node scripts/codex-room-watch.mjs"
+    });
+  });
 });

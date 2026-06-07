@@ -20,6 +20,8 @@
     "watch-room": "node scripts/room-watch.mjs",
     "notify-room": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/notify-agent-room.ps1",
     "start-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-room-watch.ps1",
+    "start-codex-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-codex-room-watch.ps1",
+    "stop-codex-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-codex-room-watch.ps1 -Stop",
     "verify-clients": "npm run build && node dist/verify-mcp-clients.js",
     "dogfood-ping-watch": "npm run build && node scripts/dogfood-ping-watch.mjs"
   },
