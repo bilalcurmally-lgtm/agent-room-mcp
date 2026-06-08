@@ -227,7 +227,8 @@ async function checkWatcherMarker(options: WakeDoctorOptions): Promise<DoctorChe
 }
 
 async function checkWatcherPid(options: WakeDoctorOptions): Promise<DoctorCheck> {
-  const pidPath = pidPathForAgent(options);
+  const pidPaths = pidPathsForAgent(options).map((name) => join(options.roomDir, name));
+  const pidPath = await firstReadablePath(pidPaths) ?? pidPaths[0];
   try {
     const raw = (await readFile(pidPath, "utf8")).trim();
     const pid = Number(raw);
@@ -309,10 +310,10 @@ async function checkWatcherLog(options: WakeDoctorOptions): Promise<DoctorCheck>
   }
 }
 
-function pidPathForAgent(options: WakeDoctorOptions): string {
-  if (options.agent === "codex-desktop") return join(options.roomDir, ".codex-room-watch.pid");
+function pidPathsForAgent(options: WakeDoctorOptions): string[] {
+  if (options.agent === "codex-desktop") return [".codex-desktop-room-watch.pid", ".codex-room-watch.pid"];
   const safeAgent = options.agent.replace(/[^A-Za-z0-9_.-]/g, "-");
-  return join(options.roomDir, `.${safeAgent}-room-watch.pid`);
+  return [`.${safeAgent}-room-watch.pid`];
 }
 
 function cursorPathsForAgent(agent: string): string[] {

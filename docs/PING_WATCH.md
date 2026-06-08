@@ -61,10 +61,12 @@ Codex Desktop does not expose a hook that can inject an external file event into
 conversation. A toast or inbox file therefore detects the message but does not create a runnable
 Codex turn.
 
-`scripts/codex-room-watch.mjs` closes that gap. It watches `messages.jsonl` with a filesystem event
-watch (not a timer), excludes Codex's own messages, applies room routing, and launches a
-`codex exec` turn. That turn calls MCP `check_in` and executes work in the same turn when Bilal or
-the room coordinator has assigned or authorized it.
+`scripts/start-codex-room-watch.ps1` closes that gap by launching the generic
+`scripts/agent-wake-watch.mjs --agent codex-desktop` worker. It watches `messages.jsonl` with a
+filesystem event watch (not a timer), excludes Codex's own messages, applies room routing, uses
+the compact-first wake contract, and launches a `codex exec` turn. That turn starts with MCP
+`check_in_compact` and executes work in the same turn only when Bilal or the room coordinator has
+assigned or authorized it.
 
 Start or stop the persistent worker:
 
@@ -74,9 +76,10 @@ npm run stop-codex-watch
 npm run install-codex-watch-task
 ```
 
-The worker stores its cursor in `.codex-room-watch-lastseen`, its PID in
-`.codex-room-watch.pid`, and execution details in `.codex-room-watch.log`. Runs are serialized so
-bursts cannot create overlapping Codex reviewers.
+The generic worker stores its cursor in `.codex-desktop-wake-watch-lastseen`, its budget in
+`.codex-desktop-wake-budget.json`, and execution details in `.codex-desktop-wake-watch.log`.
+The launcher also writes `.codex-room-watch.pid` for compatibility with the existing supervisor.
+Runs are serialized so bursts cannot create overlapping Codex reviewers.
 
 For durable autonomous wake, install the watcher as a Windows Scheduled Task:
 

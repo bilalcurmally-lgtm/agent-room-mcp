@@ -6,8 +6,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$watchScript = Join-Path $PSScriptRoot "codex-room-watch.mjs"
+$watchScript = Join-Path $PSScriptRoot "agent-wake-watch.mjs"
 $pidPath = Join-Path $Room ".codex-room-watch.pid"
+$genericPidPath = Join-Path $Room ".codex-desktop-room-watch.pid"
 $outPath = Join-Path $Room ".codex-room-watch.out.log"
 $errPath = Join-Path $Room ".codex-room-watch.err.log"
 
@@ -18,6 +19,9 @@ if (Test-Path $pidPath) {
     if ($Stop) {
       Stop-Process -Id $existingPid
       Remove-Item -LiteralPath $pidPath -Force
+      if (Test-Path $genericPidPath) {
+        Remove-Item -LiteralPath $genericPidPath -Force
+      }
       Write-Output "Stopped Codex room watch (PID $existingPid)."
       exit 0
     }
@@ -45,7 +49,7 @@ $env:CODEX_CLI_PATH = $codex
 
 $process = Start-Process `
   -FilePath $node `
-  -ArgumentList @($watchScript) `
+  -ArgumentList @($watchScript, "--agent", "codex-desktop", "--room", $Room) `
   -WorkingDirectory $repoRoot `
   -WindowStyle Hidden `
   -RedirectStandardOutput $outPath `
