@@ -10,6 +10,7 @@ const TRUSTED_WORK_ASSIGNERS = new Set(["Bilal", "claude-opus"]);
 const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const DEFAULT_WAKE_TIMEOUT_MS = Number(process.env.CODEX_ROOM_WAKE_TIMEOUT_MS ?? 120_000);
+const AGENT_SENDER_PATTERN = /\b(codex|claude|grok|cursor|antigravity|wake-probe)\b/i;
 
 export function selectCodexWakeMessages(messages, lastSeen = "") {
   const lastSeenValue = messageIdValue(lastSeen);
@@ -19,6 +20,7 @@ export function selectCodexWakeMessages(messages, lastSeen = "") {
     if (Array.isArray(message.mentions) && message.mentions.length > 0) {
       return message.mentions.includes(AGENT);
     }
+    if (message.to === "all" && AGENT_SENDER_PATTERN.test(message.from ?? "")) return false;
     return message.to === "all" || message.to === AGENT;
   });
 }
@@ -32,17 +34,21 @@ export function codexWakeSandboxMode(messages) {
 export function buildCodexWakeArgs({ repoRoot, roomDir, messageIds, sandboxMode }) {
   const ids = messageIds.join(", ");
   const prompt = [
-    "Agent Room wake event.",
-    `New routed message ids: ${ids}.`,
-    `Room directory: ${roomDir}.`,
-    "Use the agent-room MCP tools now: call check_in as codex-desktop with broadcasts enabled and project all.",
-    "Read the newest room context before deciding what action is required.",
-    "Follow the room's current role assignment and coordination instructions.",
-    "If Bilal or the coordinator assigns or authorizes concrete work, execute it end to end in this same turn: inspect the repository, edit files, run tests, commit when appropriate, and report the result in the room.",
-    "You may edit files and use tools when the room context authorizes implementation or review work; do not defer authorized work to a future normal turn.",
-    "If the new messages are informational only, post only a concise acknowledgment when useful and do not invent work.",
-    "Do not respond to your own messages."
-  ].join(" ");
+    "AGENT_ROOM_WAKE",
+    "AGENT: codex-desktop",
+    `WAKE_REASON: routed message ids ${ids}`,
+    `ROOM_DIR: ${roomDir}`,
+    "FIRST_TOOL: check_in_compact",
+    "FIRST_TOOL_ARGS: agent=codex-desktop; includeBroadcasts=true; project=all",
+    "READ_POLICY: read only the compact delta first",
+    "ALLOWED_ESCALATION: read_messages or full check_in only when compact previews are insufficient",
+    `TRUSTED_BATCH: ${sandboxMode === "danger-full-access" ? "true" : "false"}`,
+    sandboxMode === "danger-full-access"
+      ? "ACTION_POLICY: execute assigned or authorized work end to end in this turn"
+      : "ACTION_POLICY: acknowledge only; do not edit files or invent work",
+    "WAKE_EVIDENCE: in your room reply include ids seen, compact=true, escalated=true/false",
+    "MUST_NOT: respond to your own messages; read full archive by default; start agent-to-agent loops"
+  ].join("\n");
   return [
     "exec",
     "-C",

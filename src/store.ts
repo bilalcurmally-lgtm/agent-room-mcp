@@ -31,6 +31,9 @@ export const DEFAULT_INBOX_LIMIT = 50;
 // gone-stale items, which are the actionable ones; the *Count fields report the
 // true totals so nothing is silently hidden.
 export const DEFAULT_STALE_LIMIT = 5;
+export const DEFAULT_COMPACT_INBOX_LIMIT = 10;
+export const DEFAULT_COMPACT_DECISION_LIMIT = 3;
+export const DEFAULT_COMPACT_TEXT_LIMIT = 320;
 
 export type AgentId = string;
 export type TaskStatus = "open" | "claimed" | "blocked" | "done";
@@ -147,6 +150,69 @@ export interface CheckInInput {
   project?: string;
   includeBroadcasts?: boolean;
   limit?: number;
+}
+
+export interface CompactCheckInInput extends CheckInInput {
+  decisionLimit?: number;
+  textLimit?: number;
+}
+
+export interface CompactRoomMessage {
+  id: string;
+  time: string;
+  from: AgentId;
+  to: AgentId | "all";
+  topic: string;
+  preview: string;
+  bodyLength: number;
+  project?: string;
+  status?: string;
+  next?: string;
+  phase?: string;
+  replyTo?: string;
+}
+
+export interface CompactTask {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  updatedAt: string;
+  owner?: AgentId;
+  project?: string;
+}
+
+export interface CompactDecision {
+  id: string;
+  title: string;
+  time: string;
+  project?: string;
+}
+
+export interface CompactAgentCheckIn {
+  agent: Pick<RoomAgent, "id" | "displayName" | "role" | "lastReadMessageId">;
+  roomTime: RoomTime;
+  projectRecord?: RoomProject;
+  unread: {
+    count: number;
+    returned: number;
+    latestId?: string;
+    messages: CompactRoomMessage[];
+  };
+  tasks: {
+    assigned: CompactTask[];
+    open: CompactTask[];
+  };
+  alerts: {
+    staleTaskCount: number;
+    staleMessageCount: number;
+    staleDecisionCount: number;
+  };
+  decisions: CompactDecision[];
+  status: Pick<RoomStatus, "roomDir" | "messages" | "tasks" | "decisions" | "agents">;
+  contextBudget: {
+    mode: "compact";
+    guidance: string;
+  };
 }
 
 export interface AgentCheckIn {
@@ -537,6 +603,83 @@ export class AgentRoomStore {
       staleDecisionCount: allStaleDecisions.length,
       recentDecisions: decisions.filter((decision) => matchesProject(decision, input.project)),
       status: await this.getRoomStatus()
+    };
+  }
+
+  async checkInCompact(input: CompactCheckInInput): Promise<CompactAgentCheckIn> {
+    validateText("agent", input.agent);
+    validateText("project", input.project);
+
+    const agents = await this.readAgents();
+    const agent = agents.find((candidate) => candidate.id === input.agent)
+      ?? (await this.registerAgent({ agent: input.agent }));
+    const allUnread = await this.readMessages({
+      agent: input.agent,
+      sinceId: agent.lastReadMessageId,
+      includeBroadcasts: input.includeBroadcasts,
+      project: input.project
+    });
+    const inboxLimit = input.limit ?? DEFAULT_COMPACT_INBOX_LIMIT;
+    const textLimit = input.textLimit ?? DEFAULT_COMPACT_TEXT_LIMIT;
+    const unreadMessages =
+      inboxLimit >= 0 && allUnread.length > inboxLimit
+        ? allUnread.slice(allUnread.length - inboxLimit)
+        : allUnread;
+    const assignedTasks = await this.listTasks({ owner: input.agent, project: input.project });
+    const openTasks = await this.listTasks({ status: "open", project: input.project });
+    const config = await this.getConfig();
+    const [allStaleTasks, allStaleMessages, allStaleDecisions, decisions, status] = await Promise.all([
+      this.listStaleTasks({ project: input.project, olderThanHours: config.staleTaskHours }),
+      this.listStaleMessages({ project: input.project, olderThanHours: config.staleTaskHours }),
+      this.listStaleDecisions({ project: input.project, olderThanHours: config.staleTaskHours }),
+      this.readDecisions(),
+      this.getRoomStatus()
+    ]);
+    const projectRecord = input.project
+      ? (await this.readProjects()).find((project) => project.id === input.project)
+      : undefined;
+    const decisionLimit = input.decisionLimit ?? DEFAULT_COMPACT_DECISION_LIMIT;
+
+    return {
+      agent: {
+        id: agent.id,
+        displayName: agent.displayName,
+        role: agent.role,
+        lastReadMessageId: agent.lastReadMessageId
+      },
+      roomTime: createRoomTime(),
+      projectRecord,
+      unread: {
+        count: allUnread.length,
+        returned: unreadMessages.length,
+        latestId: allUnread.at(-1)?.id,
+        messages: unreadMessages.map((message) => compactMessage(message, textLimit))
+      },
+      tasks: {
+        assigned: assignedTasks.filter((task) => task.status !== "done").map(compactTask),
+        open: openTasks.map(compactTask)
+      },
+      alerts: {
+        staleTaskCount: allStaleTasks.length,
+        staleMessageCount: allStaleMessages.length,
+        staleDecisionCount: allStaleDecisions.length
+      },
+      decisions: decisions
+        .filter((decision) => matchesProject(decision, input.project))
+        .slice(-decisionLimit)
+        .map(compactDecision),
+      status: {
+        roomDir: status.roomDir,
+        messages: status.messages,
+        tasks: status.tasks,
+        decisions: status.decisions,
+        agents: status.agents
+      },
+      contextBudget: {
+        mode: "compact",
+        guidance:
+          "Wake turns should start here. Use read_messages/check_in only when the compact delta is insufficient."
+      }
     };
   }
 
@@ -1216,6 +1359,50 @@ function filterVisibleMessages(
 
 function matchesProject(item: { project?: string }, project: string | undefined): boolean {
   return !project || item.project === project;
+}
+
+function compactMessage(message: RoomMessage, textLimit: number): CompactRoomMessage {
+  const preview = truncateText(message.body, textLimit);
+  return {
+    id: message.id,
+    time: message.time,
+    from: message.from,
+    to: message.to,
+    topic: message.topic,
+    preview,
+    bodyLength: message.body.length,
+    project: message.project,
+    status: message.status,
+    next: message.next,
+    phase: message.phase,
+    replyTo: message.replyTo
+  };
+}
+
+function compactTask(task: RoomTask): CompactTask {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    owner: task.owner,
+    project: task.project,
+    updatedAt: task.updatedAt
+  };
+}
+
+function compactDecision(decision: RoomDecision): CompactDecision {
+  return {
+    id: decision.id,
+    title: decision.title,
+    time: decision.time,
+    project: decision.project
+  };
+}
+
+function truncateText(text: string, limit: number): string {
+  if (limit < 0 || text.length <= limit) return text;
+  if (limit <= 3) return text.slice(0, Math.max(0, limit));
+  return `${text.slice(0, limit - 3)}...`;
 }
 
 // Keep only the N most recently gone-stale items. The full set is oldest-first

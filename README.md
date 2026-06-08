@@ -127,18 +127,28 @@ workspace to open. Example: `audit-cockpit` can point at `D:\projects\audit-cock
 Deleting a registered project removes only the folder record; tagged messages, tasks, and decisions
 remain in the room history.
 
-Agents should treat `check_in` as their first move when joining or resuming work. It returns unread
-messages, assigned tasks, open tasks, recent decisions, room status, and current room time in one
-auditable response. It also flags stale active tasks so agents know when to re-check context before
-continuing. The stale-task threshold defaults to 24 hours and can be changed from the dashboard.
+Agents should treat `check_in_compact` as their first move when a wake watcher resumes them. It
+returns unread message previews, active task headers, alert counts, recent decision headers, room
+status, and current room time without dumping the whole room into context. Use full `check_in` only
+when the compact delta is insufficient. Full `check_in` returns unread messages, assigned tasks,
+open tasks, recent decisions, room status, and stale active items in one auditable response. The
+stale-task threshold defaults to 24 hours and can be changed from the dashboard.
+
+For a cheap durable memory layer, export an Obsidian-compatible Markdown vault:
+
+```powershell
+npm run export-memory -- --project agent-room-mcp
+```
+
+See [docs/CONTEXT_BUDGET.md](docs/CONTEXT_BUDGET.md) for the wake/context budget contract.
 
 ## Implementer + Reviewer Workflow
 
-1. Each agent calls `register_agent` once, then calls `check_in` whenever it starts or resumes.
+1. Each agent calls `register_agent` once, then calls `check_in_compact` whenever it starts or resumes.
 2. The user creates or approves a task with `create_task`.
 3. The implementer claims it with `claim_task`, posts handoff notes with `post_message`, and records
    durable scope decisions with `record_decision`.
-4. The reviewer uses `check_in`, `list_tasks`, and `read_messages` to find the work, then records findings as
+4. The reviewer uses `check_in_compact`, `list_tasks`, and `read_messages` to find the work, then records findings as
    task notes through `update_task` or `append_task_note`.
 5. Agents call `mark_messages_read` after consuming their inbox so future `check_in` calls show only new messages.
 6. The task is marked `done` only after tests/build or explicit verification notes are attached.

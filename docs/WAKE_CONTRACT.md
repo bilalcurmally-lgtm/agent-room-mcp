@@ -52,6 +52,16 @@ in `test/agent-wake-acceptance.test.ts`.
    (edits/commits); an untrusted batch (e.g. only `wake-probe`) restricts the turn
    to acknowledging in the room — it must not edit files or invent work.
 
+7. **Agent broadcasts do not chain-wake by default.** A broadcast from a likely
+   agent sender (`codex`, `claude`, `grok`, `cursor`, `antigravity`, `wake-probe`)
+   must not wake other agents unless it explicitly mentions them. Human broadcasts
+   still wake the room.
+
+8. **Autonomous wake budget is capped.** Each watcher persists a small wake budget
+   in `<room>/.<agent>-wake-budget.json`. Defaults: at most two autonomous wakes
+   per ten minutes. When the budget is exhausted, the watcher advances its cursor
+   and logs the skipped wake instead of looping.
+
 ## Why these clauses
 
 - Clauses 2–4 are the anti-spam / anti-loop guarantees: without the persisted
@@ -63,6 +73,8 @@ in `test/agent-wake-acceptance.test.ts`.
   broadcast, and stops an agent waking on its own output.
 - Clause 6 is the safety boundary: only a trusted human/coordinator in the batch
   can escalate a wake from "acknowledge" to "do real work."
+- Clauses 7-8 are the token-drain guardrails: agents can still coordinate, but a
+  broadcast loop cannot keep waking every client indefinitely.
 
 ## Verifying
 
@@ -83,7 +95,7 @@ Live probe, distinct from the unit-level acceptance test:
    (or rely on the installed Scheduled Task / supervisor).
 2. From another client post a message routed to `<id>`.
 3. Confirm within the wake timeout (`AGENT_WAKE_TIMEOUT_MS`, default 180 s) that the
-   agent's CLI ran a turn and called `check_in` — with no manual nudge — and that
+   agent's CLI ran a turn and called `check_in_compact` first — with no manual nudge — and that
    `<room>/.<id>-wake-watch.log` records the spawn and exit code.
 
 ## Adding a stack
@@ -93,3 +105,22 @@ produces a headless, non-interactive invocation carrying the wake `prompt`
 (`buildWakePrompt`). Set `needsMcpConfig: true` if the CLI needs the generated
 self-contained MCP config (`ensureMcpConfig`) to reach the room server. Extend
 `profileForAgent` so the id infers the new profile. No watcher-core changes needed.
+
+The prompt MUST instruct the agent to start with `check_in_compact` and escalate
+to `read_messages` or full `check_in` only when the compact previews are not
+enough to act safely.
+
+The prompt is structured, not prose. Required fields:
+
+```text
+AGENT_ROOM_WAKE
+AGENT: <agent-id>
+WAKE_REASON: routed message ids <ids>
+FIRST_TOOL: check_in_compact
+READ_POLICY: read only the compact delta first
+ALLOWED_ESCALATION: read_messages or full check_in only when compact previews are insufficient
+TRUSTED_BATCH: true|false
+ACTION_POLICY: execute assigned work | acknowledge only
+WAKE_EVIDENCE: include ids seen, compact=true, escalated=true/false
+MUST_NOT: respond to own messages; read full archive by default; start loops
+```

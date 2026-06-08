@@ -24,6 +24,12 @@
     "stop-codex-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-codex-room-watch.ps1 -Stop",
     "install-codex-watch-task": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-watch-task.ps1 -Agent codex-desktop",
     "remove-codex-watch-task": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-watch-task.ps1 -Agent codex-desktop -Remove",
+    "start-claude-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-claude-room-watch.ps1",
+    "stop-claude-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-claude-room-watch.ps1 -Stop",
+    "install-claude-watch-task": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-watch-task.ps1 -Agent claude-opus -RunNow",
+    "remove-claude-watch-task": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-agent-room-watch-task.ps1 -Agent claude-opus -Remove",
+    "export-memory": "node scripts/export-room-memory.mjs",
+    "doctor-wake": "node dist/doctor-wake.js",
     "verify-clients": "npm run build && node dist/verify-mcp-clients.js",
     "dogfood-ping-watch": "npm run build && node scripts/dogfood-ping-watch.mjs"
   },

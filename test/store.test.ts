@@ -394,6 +394,52 @@ describe("AgentRoomStore", () => {
     expect(checkIn.staleMessages.map((warning) => warning.id)).not.toContain("000001");
   });
 
+  it("returns a token-cheap compact check-in for wake turns", async () => {
+    const store = await makeStore();
+    await store.registerAgent(agent({ agent: "codex" }));
+    await store.upsertProject({ id: "alpha", name: "Alpha", folderPath: "D:\\projects\\alpha" });
+    await store.postMessage(message({ from: "opus", to: "codex", topic: "First", body: "short", project: "alpha" }));
+    await store.postMessage(
+      message({ from: "Bilal", to: "all", topic: "Second", body: "0123456789abcdef", project: "alpha" })
+    );
+    await store.createTask(taskInput({ title: "Implement alpha", owner: "codex", project: "alpha" }));
+    await store.createTask(taskInput({ title: "Unclaimed alpha", project: "alpha" }));
+    await store.recordDecision({
+      title: "Use compact wakes",
+      decision: "Start wake turns from check_in_compact.",
+      rationale: "Avoid spending context on full room dumps.",
+      project: "alpha"
+    });
+
+    const checkIn = await store.checkInCompact({
+      agent: "codex",
+      project: "alpha",
+      limit: 1,
+      textLimit: 8
+    });
+
+    expect(checkIn.unread.count).toBe(2);
+    expect(checkIn.unread.returned).toBe(1);
+    expect(checkIn.unread.latestId).toBe("000002");
+    expect(checkIn.unread.messages).toMatchObject([
+      {
+        id: "000002",
+        topic: "Second",
+        preview: "01234...",
+        bodyLength: 16
+      }
+    ]);
+    expect(checkIn.tasks.assigned).toMatchObject([{ title: "Implement alpha" }]);
+    expect(checkIn.tasks.open).toMatchObject([{ title: "Unclaimed alpha" }]);
+    expect(checkIn.decisions).toMatchObject([{ title: "Use compact wakes" }]);
+    expect(checkIn.alerts).toMatchObject({
+      staleTaskCount: 0,
+      staleMessageCount: 0,
+      staleDecisionCount: 0
+    });
+    expect(checkIn.contextBudget.mode).toBe("compact");
+  });
+
   it("uses room config for stale task threshold", async () => {
     const store = await makeStore();
     await store.registerAgent(agent({ agent: "codex" }));

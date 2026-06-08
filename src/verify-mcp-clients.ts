@@ -105,7 +105,15 @@ export async function verifyClientSetup(
 
     const tools = await client.listTools();
     const toolNames = tools.tools.map((tool) => tool.name);
-    for (const required of ["register_agent", "check_in", "post_message", "set_active_project", "get_room_config", "get_room_status"]) {
+    for (const required of [
+      "register_agent",
+      "check_in",
+      "check_in_compact",
+      "post_message",
+      "set_active_project",
+      "get_room_config",
+      "get_room_status"
+    ]) {
       if (!toolNames.includes(required)) {
         throw new Error(`Missing tool: ${required}`);
       }
@@ -132,6 +140,13 @@ export async function verifyClientSetup(
     if (checkIn.agent.id !== profile.agent) throw new Error("check_in agent mismatch");
     if (checkIn.status.roomDir !== resolve(options.roomDir)) throw new Error("check_in roomDir mismatch");
     steps.push("check_in");
+
+    const compact = (await callToolJson(client, "check_in_compact", {
+      agent: profile.agent
+    })) as { agent: { id: string }; contextBudget: { mode: string } };
+    if (compact.agent.id !== profile.agent) throw new Error("check_in_compact agent mismatch");
+    if (compact.contextBudget.mode !== "compact") throw new Error("check_in_compact did not return compact mode");
+    steps.push("check_in_compact");
 
     const topic = `${profile.client} MCP verification`;
     const message = (await callToolJson(client, "post_message", {

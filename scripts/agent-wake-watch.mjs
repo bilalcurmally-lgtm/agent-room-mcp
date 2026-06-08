@@ -24,8 +24,11 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
 const DEFAULT_WAKE_TIMEOUT_MS = Number(process.env.AGENT_WAKE_TIMEOUT_MS ?? 180_000);
+const DEFAULT_WAKE_WINDOW_MS = Number(process.env.AGENT_WAKE_WINDOW_MS ?? 10 * 60_000);
+const DEFAULT_MAX_WAKES_PER_WINDOW = Number(process.env.AGENT_WAKE_MAX_PER_WINDOW ?? 2);
 // Senders allowed to authorize real work (edits/commits) in the woken turn.
 const TRUSTED_WORK_ASSIGNERS = new Set(["Bilal", "claude-opus", "codex-desktop"]);
+const AGENT_SENDER_PATTERN = /\b(codex|claude|grok|cursor|antigravity|wake-probe)\b/i;
 
 // ---------------------------------------------------------------------------
 // Profiles: how to launch a headless turn for a given agent's CLI.
@@ -87,8 +90,29 @@ export function selectWakeMessages(messages, agent, lastSeen = "") {
     if (Array.isArray(message.mentions) && message.mentions.length > 0) {
       return message.mentions.includes(agent);
     }
+    if (message.to === "all" && isLikelyAgentSender(message.from)) return false;
     return message.to === "all" || message.to === agent;
   });
+}
+
+export function isLikelyAgentSender(sender = "") {
+  return AGENT_SENDER_PATTERN.test(sender);
+}
+
+export async function canSpendWakeBudget({
+  roomDir = DEFAULT_ROOM_DIR,
+  agent,
+  nowMs = Date.now(),
+  windowMs = DEFAULT_WAKE_WINDOW_MS,
+  maxWakes = DEFAULT_MAX_WAKES_PER_WINDOW
+}) {
+  if (maxWakes <= 0) return { allowed: false, recent: [] };
+  const path = join(roomDir, `.${agent}-wake-budget.json`);
+  const recent = (await readWakeBudget(path)).filter((entry) => nowMs - entry.at <= windowMs);
+  if (recent.length >= maxWakes) return { allowed: false, recent };
+  const next = [...recent, { at: nowMs }];
+  await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return { allowed: true, recent: next };
 }
 
 // A woken turn may run real toolchains only if a trusted sender is in the batch.
@@ -99,19 +123,22 @@ export function isTrustedBatch(messages) {
 export function buildWakePrompt({ agent, roomDir, messageIds, trusted }) {
   const ids = messageIds.join(", ");
   return [
-    "Agent Room wake event.",
-    `You are the agent "${agent}".`,
-    `New routed message ids: ${ids}.`,
-    `Room directory: ${roomDir}.`,
-    `Use the agent-room MCP tools now: call check_in as "${agent}" with broadcasts enabled and project all.`,
-    "Read the newest room context before deciding what action is required.",
-    "Follow the room's current role assignment and coordination instructions.",
+    "AGENT_ROOM_WAKE",
+    `AGENT: ${agent}`,
+    `WAKE_REASON: routed message ids ${ids}`,
+    `ROOM_DIR: ${roomDir}`,
+    "FIRST_TOOL: check_in_compact",
+    `FIRST_TOOL_ARGS: agent=${agent}; includeBroadcasts=true; project=all`,
+    "READ_POLICY: read only the compact delta first",
+    "ALLOWED_ESCALATION: read_messages or full check_in only when compact previews are insufficient",
+    `TRUSTED_BATCH: ${trusted ? "true" : "false"}`,
     trusted
-      ? "A trusted sender (Bilal or a coordinator agent) is in this batch: if they assign or authorize concrete work, execute it end to end in this same turn — inspect the repo, edit files, run tests, commit when appropriate, and report the result in the room."
-      : "No trusted assigner in this batch: respond/acknowledge in the room and do NOT edit files or invent work.",
-    "If the new messages are informational only, post a concise acknowledgment only when useful.",
-    "Mark messages read through the newest id when done. Do not respond to your own messages."
-  ].join(" ");
+      ? "ACTION_POLICY: execute assigned or authorized work end to end in this turn"
+      : "ACTION_POLICY: acknowledge only; do not edit files or invent work",
+    "WAKE_EVIDENCE: in your room reply include ids seen, compact=true, escalated=true/false",
+    "MUST_NOT: respond to your own messages; read full archive by default; start agent-to-agent loops",
+    "FINISH: mark messages read through the newest id when done"
+  ].join("\n");
 }
 
 export function buildWakeArgs({ profile, prompt, repoRoot, roomDir, mcpConfigPath, trusted }) {
@@ -204,7 +231,9 @@ export async function startAgentWakeWatch({
   repoRoot = REPO_ROOT,
   roomDir = DEFAULT_ROOM_DIR,
   wake = runWake,
-  writePid = true
+  writePid = true,
+  maxWakesPerWindow = DEFAULT_MAX_WAKES_PER_WINDOW,
+  wakeWindowMs = DEFAULT_WAKE_WINDOW_MS
 } = {}) {
   if (!agent) throw new Error("startAgentWakeWatch requires { agent }");
   const messagesPath = join(roomDir, "messages.jsonl");
@@ -238,6 +267,20 @@ export async function startAgentWakeWatch({
           await writeFile(cursorPath, `${lastSeen}\n`, "utf8");
         }
         if (selected.length > 0) {
+          const budget = await canSpendWakeBudget({
+            roomDir,
+            agent,
+            windowMs: wakeWindowMs,
+            maxWakes: maxWakesPerWindow
+          });
+          if (!budget.allowed) {
+            await logWatchError(
+              roomDir,
+              agent,
+              `wake budget exhausted for ${selected.map((message) => message.id).join(",")}`
+            );
+            continue;
+          }
           try {
             await wake({
               agent,
@@ -290,6 +333,16 @@ async function readText(path) {
     return (await readFile(path, "utf8")).trim();
   } catch {
     return "";
+  }
+}
+
+async function readWakeBudget(path) {
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8"));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry) => Number.isFinite(entry?.at));
+  } catch {
+    return [];
   }
 }
 

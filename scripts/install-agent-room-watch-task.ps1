@@ -29,8 +29,15 @@ if (-not $TaskName) {
   $TaskName = "Agent Room Watch - $safeAgent"
 }
 
-if (-not $StartScript -and $Agent -eq "codex-desktop") {
-  $StartScript = Join-Path $PSScriptRoot "start-codex-room-watch.ps1"
+# Auto-map the per-agent start script when one is not passed explicitly. Every
+# agent that ships a durable auto-wake watcher needs an entry here, or the task
+# installs against the supervisor default and the agent silently never wakes
+# (this is exactly how the claude-opus task ended up half-wired and Disabled).
+if (-not $StartScript) {
+  switch ($Agent) {
+    "codex-desktop" { $StartScript = Join-Path $PSScriptRoot "start-codex-room-watch.ps1" }
+    "claude-opus"   { $StartScript = Join-Path $PSScriptRoot "start-claude-room-watch.ps1" }
+  }
 }
 
 $markerPath = Join-Path $Room ".$Agent-watch-task.json"

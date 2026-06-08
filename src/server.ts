@@ -104,6 +104,12 @@ const CheckInInput = {
   limit: z.number().int().positive().optional()
 };
 
+const CompactCheckInInput = {
+  ...CheckInInput,
+  decisionLimit: z.number().int().nonnegative().optional(),
+  textLimit: z.number().int().nonnegative().optional()
+};
+
 const ListTasksInput = {
   status: z.enum(["open", "claimed", "blocked", "done"]).optional(),
   owner: z.string().max(MAX_TEXT_LENGTH).optional(),
@@ -272,6 +278,20 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => {
       const config = await store.getConfig();
       return jsonResult(await store.checkIn({ ...input, project: resolveRoomProject(config, input.project) }));
+    }
+  );
+
+  server.registerTool(
+    "check_in_compact",
+    {
+      title: "Compact check in",
+      description:
+        "Token-cheap wake check-in. Returns compact unread message previews, active task headers, alert counts, and recent decision headers. Use full check_in only when this delta is insufficient.",
+      inputSchema: CompactCheckInInput
+    },
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(await store.checkInCompact({ ...input, project: resolveRoomProject(config, input.project) }));
     }
   );
 

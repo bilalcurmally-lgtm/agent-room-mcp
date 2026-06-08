@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   buildWakeArgs,
   buildWakePrompt,
+  canSpendWakeBudget,
+  isLikelyAgentSender,
   isTrustedBatch,
   profileForAgent,
   selectWakeMessages
@@ -36,6 +41,15 @@ describe("selectWakeMessages", () => {
     expect(selected.map((m) => m.id)).toEqual(["000011", "000012"]);
   });
 
+  it("does not wake on agent broadcasts unless explicitly mentioned", () => {
+    const messages = [
+      msg({ id: "000011", from: "claude-opus", to: "all" }),
+      msg({ id: "000012", from: "claude-opus", to: "all", mentions: ["codex-desktop"] })
+    ];
+    const selected = selectWakeMessages(messages, "codex-desktop", "000010");
+    expect(selected.map((m) => m.id)).toEqual(["000012"]);
+  });
+
   it("respects explicit mentions over routing", () => {
     const messages = [
       msg({ id: "000011", to: "all", mentions: ["codex-desktop"] }),
@@ -43,6 +57,34 @@ describe("selectWakeMessages", () => {
     ];
     const selected = selectWakeMessages(messages, "claude-opus", "000010");
     expect(selected.map((m) => m.id)).toEqual(["000012"]);
+  });
+});
+
+describe("wake loop breaker", () => {
+  it("recognizes likely agent senders", () => {
+    expect(isLikelyAgentSender("claude-opus")).toBe(true);
+    expect(isLikelyAgentSender("codex-desktop")).toBe(true);
+    expect(isLikelyAgentSender("Bilal")).toBe(false);
+  });
+
+  it("limits autonomous wake spending per window", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "wake-budget-"));
+    try {
+      await expect(
+        canSpendWakeBudget({ roomDir, agent: "codex-desktop", nowMs: 1_000, windowMs: 60_000, maxWakes: 2 })
+      ).resolves.toMatchObject({ allowed: true });
+      await expect(
+        canSpendWakeBudget({ roomDir, agent: "codex-desktop", nowMs: 2_000, windowMs: 60_000, maxWakes: 2 })
+      ).resolves.toMatchObject({ allowed: true });
+      await expect(
+        canSpendWakeBudget({ roomDir, agent: "codex-desktop", nowMs: 3_000, windowMs: 60_000, maxWakes: 2 })
+      ).resolves.toMatchObject({ allowed: false });
+      await expect(
+        canSpendWakeBudget({ roomDir, agent: "codex-desktop", nowMs: 70_000, windowMs: 60_000, maxWakes: 2 })
+      ).resolves.toMatchObject({ allowed: true });
+    } finally {
+      await rm(roomDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -96,10 +138,17 @@ describe("buildWakeArgs", () => {
 });
 
 describe("buildWakePrompt", () => {
+  it("starts wake turns with compact check-in before full reads", () => {
+    const prompt = buildWakePrompt({ agent: "claude-opus", roomDir: "R", messageIds: ["1"], trusted: true });
+    expect(prompt).toContain("FIRST_TOOL: check_in_compact");
+    expect(prompt).toContain("ALLOWED_ESCALATION: read_messages or full check_in only when compact previews are insufficient");
+    expect(prompt).toContain("WAKE_EVIDENCE");
+  });
+
   it("authorizes work only for trusted batches", () => {
     const trusted = buildWakePrompt({ agent: "claude-opus", roomDir: "R", messageIds: ["1"], trusted: true });
-    expect(trusted).toMatch(/execute it end to end/);
+    expect(trusted).toMatch(/ACTION_POLICY: execute assigned/);
     const untrusted = buildWakePrompt({ agent: "claude-opus", roomDir: "R", messageIds: ["1"], trusted: false });
-    expect(untrusted).toMatch(/do NOT edit files/);
+    expect(untrusted).toMatch(/ACTION_POLICY: acknowledge only/);
   });
 });

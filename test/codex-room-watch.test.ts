@@ -15,8 +15,9 @@ describe("codex room watch", () => {
       { id: "000100", from: "user", to: "all", body: "broadcast" },
       { id: "000101", from: "codex-desktop", to: "all", body: "own post" },
       { id: "000102", from: "claude-opus", to: "grok-cli", body: "not for codex" },
+      { id: "000103", from: "claude-opus", to: "all", body: "agent broadcast" },
       {
-        id: "000103",
+        id: "000104",
         from: "claude-opus",
         to: "all",
         mentions: ["codex-desktop", "grok-cli"],
@@ -26,9 +27,9 @@ describe("codex room watch", () => {
 
     expect(selectCodexWakeMessages(messages, "000099")).toMatchObject([
       { id: "000100" },
-      { id: "000103" }
+      { id: "000104" }
     ]);
-    expect(selectCodexWakeMessages(messages, "000100")).toMatchObject([{ id: "000103" }]);
+    expect(selectCodexWakeMessages(messages, "000100")).toMatchObject([{ id: "000104" }]);
   });
 
   it("builds a non-interactive Codex turn that can execute assigned work", () => {
@@ -44,11 +45,11 @@ describe("codex room watch", () => {
     expect(args).toContain("--sandbox");
     expect(args).toContain("workspace-write");
     expect(args).toContain('windows.sandbox="unelevated"');
-    expect(args.at(-1)).toContain("check_in");
+    expect(args.at(-1)).toContain("FIRST_TOOL: check_in_compact");
+    expect(args.at(-1)).toContain("ALLOWED_ESCALATION: read_messages or full check_in only when compact previews are insufficient");
     expect(args.at(-1)).toContain("000100, 000103");
-    expect(args.at(-1)).toContain("execute it end to end in this same turn");
-    expect(args.at(-1)).toContain("You may edit files");
-    expect(args.at(-1)).not.toContain("Do not edit files");
+    expect(args.at(-1)).toContain("ACTION_POLICY: acknowledge only");
+    expect(args.at(-1)).toContain("WAKE_EVIDENCE");
   });
 
   it("grants full execution only for trusted work assigners", () => {

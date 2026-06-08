@@ -532,6 +532,23 @@ export const dashboardHtml = `<!doctype html>
     }
     #message-form { margin: 0; }
     .composer-chat { gap: 6px; }
+    .message-input-wrap { display: grid; gap: 6px; }
+    .mention-picker {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 6px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+    }
+    .mention-picker[hidden] { display: none; }
+    .mention-picker button {
+      width: auto;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--soft-2);
+    }
     .composer-foot {
       display: flex;
       align-items: center;
@@ -795,7 +812,10 @@ export const dashboardHtml = `<!doctype html>
         </details>
         <div id="feed" class="feed"></div>
         <form id="message-form" class="composer composer-chat">
-            <textarea id="message" rows="3" placeholder="Message the room… @all @codex @grok @claude"></textarea>
+            <div class="message-input-wrap">
+              <textarea id="message" rows="3" placeholder="Message the room… @all @codex @grok @claude"></textarea>
+              <div id="mention-picker" class="mention-picker" hidden></div>
+            </div>
             <div class="composer-foot">
               <p class="composer-hint" id="composer-route-hint">Enter to send · Shift+Enter for a new line · @mentions route alerts</p>
               <label class="composer-identity">Posting as <input id="composer-user" placeholder="Your name" title="Your display name on this browser only — saved locally, not shared with agents" /></label>
@@ -1004,6 +1024,7 @@ export const dashboardHtml = `<!doctype html>
     const messageTo = document.getElementById("message-to");
     const messageSubmit = document.getElementById("message-submit");
     const messageFiles = document.getElementById("message-files");
+    const mentionPicker = document.getElementById("mention-picker");
     const messageAttachmentsPending = document.getElementById("message-attachments-pending");
     let pendingAttachmentIds = [];
     const projectForm = document.getElementById("project-form");
@@ -1377,6 +1398,82 @@ export const dashboardHtml = `<!doctype html>
       if (trimmed === "grok" || trimmed === "grok-cli" || trimmed.startsWith("grok")) return "Grok";
       if (trimmed === "antigravity") return "Antigravity";
       return trimmed;
+    }
+
+    function mentionTokenForAgent(id) {
+      if (id === "codex-desktop") return "codex";
+      if (id === "claude-opus") return "claude";
+      if (id === "grok" || id === "grok-cli" || id.startsWith("grok")) return "grok";
+      return id;
+    }
+
+    function mentionOptions() {
+      const seen = new Set();
+      const base = [{ token: "all", label: "all agents" }];
+      const agents = registeredAgentIds().map((id) => ({
+        token: mentionTokenForAgent(id),
+        label: routeLabel(id)
+      }));
+      return [...base, ...agents].filter((option) => {
+        const key = option.token.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function activeMentionQuery() {
+      const cursor = messageInput.selectionStart ?? messageInput.value.length;
+      const before = messageInput.value.slice(0, cursor);
+      const match = before.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
+      if (!match) return null;
+      return {
+        query: (match[2] || "").toLowerCase(),
+        start: cursor - (match[2] || "").length - 1,
+        end: cursor
+      };
+    }
+
+    function renderMentionPicker() {
+      if (!mentionPicker) return;
+      const active = activeMentionQuery();
+      if (!active) {
+        mentionPicker.hidden = true;
+        mentionPicker.replaceChildren();
+        return;
+      }
+      const options = mentionOptions()
+        .filter((option) => option.token.toLowerCase().startsWith(active.query))
+        .slice(0, 8);
+      if (!options.length) {
+        mentionPicker.hidden = true;
+        mentionPicker.replaceChildren();
+        return;
+      }
+      mentionPicker.replaceChildren(...options.map((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "@" + option.token;
+        button.title = "Mention " + option.label;
+        button.addEventListener("mousedown", (event) => event.preventDefault());
+        button.addEventListener("click", () => insertMention(option.token));
+        return button;
+      }));
+      mentionPicker.hidden = false;
+    }
+
+    function insertMention(token) {
+      const active = activeMentionQuery();
+      if (!active) return;
+      const before = messageInput.value.slice(0, active.start);
+      const after = messageInput.value.slice(active.end);
+      const inserted = "@" + token + " ";
+      messageInput.value = before + inserted + after;
+      const cursor = before.length + inserted.length;
+      messageInput.focus();
+      messageInput.setSelectionRange(cursor, cursor);
+      renderMentionPicker();
+      updateMessageSubmitLabel();
     }
 
     function previewMentionRoute(text) {
@@ -2125,6 +2222,7 @@ export const dashboardHtml = `<!doctype html>
       if (!snapshot.agents.length) {
         setEmpty(agents, "No agents checked in", "Agents appear after register_agent and check_in from an MCP client.");
       }
+      renderMentionPicker();
 
       replaceWithLimitedCards(
         protocolWarnings,
@@ -2344,7 +2442,12 @@ export const dashboardHtml = `<!doctype html>
     });
 
     messageTo.addEventListener("input", updateMessageSubmitLabel);
-    messageInput.addEventListener("input", updateMessageSubmitLabel);
+    messageInput.addEventListener("input", () => {
+      renderMentionPicker();
+      updateMessageSubmitLabel();
+    });
+    messageInput.addEventListener("click", renderMentionPicker);
+    messageInput.addEventListener("keyup", renderMentionPicker);
 
     staleThresholdForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -2410,6 +2513,21 @@ export const dashboardHtml = `<!doctype html>
     });
 
     messageInput.addEventListener("keydown", (event) => {
+      if (!mentionPicker?.hidden && (event.key === "Enter" || event.key === "Tab")) {
+        const first = mentionPicker.querySelector("button");
+        if (first) {
+          event.preventDefault();
+          event.stopPropagation();
+          first.click();
+          return;
+        }
+      }
+      if (!mentionPicker?.hidden && event.key === "Escape") {
+        mentionPicker.hidden = true;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (event.isComposing || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
       const isEnter = event.key === "Enter" || event.code === "Enter" || event.code === "NumpadEnter";
       if (!isEnter) return;
