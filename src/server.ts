@@ -450,12 +450,14 @@ async function main(): Promise<void> {
   await server.connect(transport);
 }
 
-function jsonResult(value: unknown): { content: Array<{ type: "text"; text: string }> } {
+// Compact on purpose: tool responses are consumed by models, and indentation
+// whitespace is pure token cost (it was ~20-30% of every response).
+export function jsonResult(value: unknown): { content: Array<{ type: "text"; text: string }> } {
   return {
     content: [
       {
         type: "text",
-        text: JSON.stringify(value, null, 2)
+        text: JSON.stringify(value)
       }
     ]
   };

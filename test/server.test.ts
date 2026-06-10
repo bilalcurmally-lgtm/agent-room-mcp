@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assertProtocolCompliant } from "../src/protocol.js";
-import { createServer, isDirectRun, resolveRoomDir } from "../src/server.js";
+import { createServer, isDirectRun, jsonResult, resolveRoomDir } from "../src/server.js";
 import { AgentRoomStore } from "../src/store.js";
 
 describe("resolveRoomDir", () => {
@@ -36,6 +36,13 @@ describe("isDirectRun", () => {
   it("returns false when argv path is missing or different", () => {
     expect(isDirectRun("file:///D:/projects/agent-room-mcp/src/server.ts", undefined)).toBe(false);
     expect(isDirectRun("file:///D:/projects/agent-room-mcp/src/server.ts", "D:\\other\\server.ts")).toBe(false);
+  });
+});
+
+describe("jsonResult", () => {
+  it("serializes tool responses compactly, without indentation whitespace", () => {
+    const result = jsonResult({ id: "000001", nested: { items: [1, 2] } });
+    expect(result.content[0].text).toBe('{"id":"000001","nested":{"items":[1,2]}}');
   });
 });
 
