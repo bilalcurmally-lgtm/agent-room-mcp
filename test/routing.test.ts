@@ -127,6 +127,27 @@ describe("routing", () => {
     ).toMatchObject({ to: "codex-desktop", parsedMentions: ["codex"] });
   });
 
+  it("keeps an explicit recipient when the body quotes another agent", () => {
+    expect(
+      resolveMessageRoute({
+        to: "codex-desktop",
+        body: "as @claude suggested earlier, ship it",
+        registeredAgentIds: registered
+      })
+    ).toMatchObject({
+      to: "codex-desktop",
+      mentions: ["claude-opus"],
+      parsedMentions: ["claude"]
+    });
+  });
+
+  it("delivers to both the explicit recipient and additive mentions", () => {
+    const message = { from: "user", to: "codex-desktop", mentions: ["claude-opus"] };
+    expect(messageTargetsAgent(message, "codex-desktop")).toBe(true);
+    expect(messageTargetsAgent(message, "claude-opus")).toBe(true);
+    expect(messageTargetsAgent(message, "cursor")).toBe(false);
+  });
+
   it("routes @all as a broadcast", () => {
     expect(
       resolveMessageRoute({

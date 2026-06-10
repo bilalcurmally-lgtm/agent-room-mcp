@@ -96,12 +96,23 @@ export function resolveMessageRoute(input: {
   const resolved = resolvedByToken.filter((value): value is string => Boolean(value));
   const unresolvedMentions = tokens.filter((_, index) => !resolvedByToken[index]);
   const withUnresolved = unresolvedMentions.length ? { unresolvedMentions } : {};
+  const uniqueAgents = [...new Set(resolved.filter((id) => id !== "all"))];
+
+  // An explicit recipient always wins (P0-04): body mentions add notified agents
+  // but never reroute the message — quoting someone must not change the recipient.
+  if (explicitTo && normalizedExplicit !== "all") {
+    return {
+      to: normalizedExplicit,
+      ...(uniqueAgents.length ? { mentions: uniqueAgents } : {}),
+      parsedMentions: tokens,
+      ...withUnresolved
+    };
+  }
 
   if (resolved.includes("all")) {
     return { to: "all", parsedMentions: tokens, ...withUnresolved };
   }
 
-  const uniqueAgents = [...new Set(resolved)];
   if (uniqueAgents.length === 1) {
     return {
       to: uniqueAgents[0],
@@ -112,33 +123,28 @@ export function resolveMessageRoute(input: {
 
   if (uniqueAgents.length > 1) {
     return {
-      to: normalizedExplicit !== "all" ? normalizedExplicit : "all",
+      to: "all",
       mentions: uniqueAgents,
       parsedMentions: tokens,
       ...withUnresolved
     };
   }
 
-  // Every mention token failed to resolve. Broadcasting here is the P0-01 bug:
-  // a targeted ping must never silently widen into a room-wide one.
-  if (!explicitTo || normalizedExplicit === "all") {
-    throw new UnresolvedMentionsError(unresolvedMentions, input.registeredAgentIds);
-  }
-
-  return {
-    to: normalizedExplicit,
-    parsedMentions: tokens,
-    ...withUnresolved
-  };
+  // Every mention token failed to resolve and there is no explicit recipient.
+  // Broadcasting here is the P0-01 bug: a targeted ping must never silently
+  // widen into a room-wide one.
+  throw new UnresolvedMentionsError(unresolvedMentions, input.registeredAgentIds);
 }
 
 export function messageTargetsAgent(message: RoutableMessage, agent: string): boolean {
   if (message.from === agent) return false;
+  // The explicit recipient is always targeted; mentions are additive (P0-04),
+  // and on a broadcast they narrow delivery to the named agents only.
+  if (message.to === agent) return true;
   if (Array.isArray(message.mentions) && message.mentions.length > 0) {
     return message.mentions.includes(agent);
   }
-  if (message.to === "all") return true;
-  return message.to === agent;
+  return message.to === "all";
 }
 
 export function formatRouteLabel(route: string, mentions?: string[]): string {

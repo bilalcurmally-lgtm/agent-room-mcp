@@ -26,6 +26,9 @@ When anyone posts with `@all`, `@codex`, `@grok`, `@claude`, or a registered age
 - `@all` / broadcast → every joined agent except the sender
 - Single `@mention` → only that agent (if joined)
 - Multiple `@mentions` → only the named joined agents (not everyone)
+- An explicit `to:` recipient always wins: body mentions add notified agents but never
+  reroute the message — quoting `@claude` in a message to `codex-desktop` keeps it
+  addressed to `codex-desktop`, with `claude-opus` notified via `mentions`
 
 Unresolved mentions never widen the audience. If a body contains mention tokens and none of
 them resolve to a joined agent:
