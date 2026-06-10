@@ -55,7 +55,14 @@ const ReadMessagesInput = {
   limit: z.number().int().positive().optional()
 };
 
-const DEFAULT_READ_LIMIT = 200;
+const DEFAULT_LIST_LIMIT = 20;
+
+// List endpoints return the most recent N matches in an envelope so agents can
+// see there is more without pulling the whole log into context (P1-03).
+export function paginate<T>(items: T[], limit: number): { items: T[]; total: number; truncated: boolean } {
+  const selected = items.slice(Math.max(0, items.length - limit));
+  return { items: selected, total: items.length, truncated: selected.length < items.length };
+}
 
 const CreateTaskInput = {
   title: z.string().min(1).max(MAX_TEXT_LENGTH),
@@ -113,7 +120,8 @@ const CompactCheckInInput = {
 const ListTasksInput = {
   status: z.enum(["open", "claimed", "blocked", "done"]).optional(),
   owner: z.string().max(MAX_TEXT_LENGTH).optional(),
-  project: z.string().min(1).max(MAX_TEXT_LENGTH).optional()
+  project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+  limit: z.number().int().positive().optional()
 };
 
 const UpdateTaskInput = {
@@ -220,18 +228,17 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     {
       title: "Read messages",
       description:
-        "Read messages addressed to an agent, optionally after a message id. Returns the most recent matches (default 200); pass limit to widen or narrow.",
+        "Read messages addressed to an agent, optionally after a message id. Returns {items, total, truncated} with the most recent matches (default 20); pass limit to widen or narrow.",
       inputSchema: ReadMessagesInput
     },
     async (input) => {
       const config = await store.getConfig();
-      return jsonResult(
-        await store.readMessages({
-          ...input,
-          project: resolveRoomProject(config, input.project),
-          limit: input.limit ?? DEFAULT_READ_LIMIT
-        })
-      );
+      const messages = await store.readMessages({
+        ...input,
+        project: resolveRoomProject(config, input.project),
+        limit: undefined
+      });
+      return jsonResult(paginate(messages, input.limit ?? DEFAULT_LIST_LIMIT));
     }
   );
 
@@ -376,12 +383,14 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     "list_tasks",
     {
       title: "List tasks",
-      description: "List room tasks, optionally filtered by status, owner, or project.",
+      description:
+        "List room tasks, optionally filtered by status, owner, or project. Returns {items, total, truncated} with the most recent matches (default 20).",
       inputSchema: ListTasksInput
     },
     async (input) => {
       const config = await store.getConfig();
-      return jsonResult(await store.listTasks({ ...input, project: resolveRoomProject(config, input.project) }));
+      const tasks = await store.listTasks({ ...input, project: resolveRoomProject(config, input.project) });
+      return jsonResult(paginate(tasks, input.limit ?? DEFAULT_LIST_LIMIT));
     }
   );
 

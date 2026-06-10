@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assertProtocolCompliant } from "../src/protocol.js";
-import { createServer, isDirectRun, jsonResult, resolveRoomDir } from "../src/server.js";
+import { createServer, isDirectRun, jsonResult, paginate, resolveRoomDir } from "../src/server.js";
 import { AgentRoomStore } from "../src/store.js";
 
 describe("resolveRoomDir", () => {
@@ -36,6 +36,17 @@ describe("isDirectRun", () => {
   it("returns false when argv path is missing or different", () => {
     expect(isDirectRun("file:///D:/projects/agent-room-mcp/src/server.ts", undefined)).toBe(false);
     expect(isDirectRun("file:///D:/projects/agent-room-mcp/src/server.ts", "D:\\other\\server.ts")).toBe(false);
+  });
+});
+
+describe("paginate", () => {
+  it("returns all items untruncated when under the limit", () => {
+    expect(paginate([1, 2, 3], 20)).toEqual({ items: [1, 2, 3], total: 3, truncated: false });
+  });
+
+  it("keeps the most recent items and reports the full total", () => {
+    const result = paginate(["a", "b", "c", "d"], 2);
+    expect(result).toEqual({ items: ["c", "d"], total: 4, truncated: true });
   });
 });
 
