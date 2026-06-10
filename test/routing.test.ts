@@ -22,6 +22,16 @@ describe("routing", () => {
     expect(resolveAgentId("codex-desktop", registered)).toBe("codex-desktop");
   });
 
+  it("falls back to the literal registered id when the alias target is absent", () => {
+    expect(resolveAgentId("claude", ["claude", "cursor"])).toBe("claude");
+    expect(
+      resolveMessageRoute({
+        body: "@claude please review",
+        registeredAgentIds: ["claude", "cursor"]
+      })
+    ).toMatchObject({ to: "claude", parsedMentions: ["claude"] });
+  });
+
   it("resolves @grok to grok-cli when only grok-cli has joined", () => {
     const joined = ["codex-desktop", "claude-opus", "grok-cli", "antigravity"];
     expect(resolveAgentId("grok", joined)).toBe("grok-cli");

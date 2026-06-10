@@ -57,14 +57,13 @@ function resolveGrokAgentId(registeredAgentIds: readonly string[]): string | und
 
 export function resolveAgentId(token: string, registeredAgentIds: readonly string[]): string | undefined {
   const normalized = token.toLowerCase();
-  if (AGENT_ALIASES[normalized]) {
-    const alias = AGENT_ALIASES[normalized];
-    if (alias === "all") return "all";
+  const alias = AGENT_ALIASES[normalized];
+  if (alias === "all") return "all";
+  if (alias) {
     const exact = registeredAgentMatch(registeredAgentIds, alias);
     if (exact) return exact;
-    if (normalized === "grok") return resolveGrokAgentId(registeredAgentIds);
-    return undefined;
   }
+  // Alias-target miss must not block an agent registered under the literal token.
   const direct = registeredAgentMatch(registeredAgentIds, normalized);
   if (direct) return direct;
   if (normalized === "grok") return resolveGrokAgentId(registeredAgentIds);
