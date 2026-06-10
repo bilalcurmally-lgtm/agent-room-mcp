@@ -42,6 +42,7 @@ export interface PostMessageInput {
   from: AgentId;
   to: AgentId | "all";
   mentions?: AgentId[];
+  unresolvedMentions?: string[];
   topic: string;
   body: string;
   project?: string;
@@ -391,6 +392,7 @@ export class AgentRoomStore {
         from: input.from,
         to: input.to,
         ...(input.mentions?.length ? { mentions: input.mentions } : {}),
+        ...(input.unresolvedMentions?.length ? { unresolvedMentions: input.unresolvedMentions } : {}),
         topic: input.topic,
         body,
         project: input.project,

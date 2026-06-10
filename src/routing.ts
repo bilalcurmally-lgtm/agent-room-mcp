@@ -15,6 +15,20 @@ export interface ResolvedRoute {
   to: string;
   mentions?: string[];
   parsedMentions: string[];
+  /** Mention tokens that matched no registered agent; kept for audit/dashboard flagging. */
+  unresolvedMentions?: string[];
+}
+
+export class UnresolvedMentionsError extends Error {
+  readonly unresolvedMentions: string[];
+
+  constructor(unresolved: string[], registeredAgentIds: readonly string[]) {
+    const tags = unresolved.map((token) => `@${token}`).join(", ");
+    const registered = registeredAgentIds.length ? [...registeredAgentIds].sort().join(", ") : "none";
+    super(`unknown agent(s): ${tags} — registered: ${registered}`);
+    this.name = "UnresolvedMentionsError";
+    this.unresolvedMentions = unresolved;
+  }
 }
 
 export interface RoutableMessage {
@@ -79,19 +93,21 @@ export function resolveMessageRoute(input: {
     };
   }
 
-  const resolved = tokens
-    .map((token) => resolveAgentId(token, input.registeredAgentIds))
-    .filter((value): value is string => Boolean(value));
+  const resolvedByToken = tokens.map((token) => resolveAgentId(token, input.registeredAgentIds));
+  const resolved = resolvedByToken.filter((value): value is string => Boolean(value));
+  const unresolvedMentions = tokens.filter((_, index) => !resolvedByToken[index]);
+  const withUnresolved = unresolvedMentions.length ? { unresolvedMentions } : {};
 
   if (resolved.includes("all")) {
-    return { to: "all", parsedMentions: tokens };
+    return { to: "all", parsedMentions: tokens, ...withUnresolved };
   }
 
-  const uniqueAgents = [...new Set(resolved.filter((id) => id !== "all"))];
+  const uniqueAgents = [...new Set(resolved)];
   if (uniqueAgents.length === 1) {
     return {
       to: uniqueAgents[0],
-      parsedMentions: tokens
+      parsedMentions: tokens,
+      ...withUnresolved
     };
   }
 
@@ -99,13 +115,21 @@ export function resolveMessageRoute(input: {
     return {
       to: normalizedExplicit !== "all" ? normalizedExplicit : "all",
       mentions: uniqueAgents,
-      parsedMentions: tokens
+      parsedMentions: tokens,
+      ...withUnresolved
     };
+  }
+
+  // Every mention token failed to resolve. Broadcasting here is the P0-01 bug:
+  // a targeted ping must never silently widen into a room-wide one.
+  if (!explicitTo || normalizedExplicit === "all") {
+    throw new UnresolvedMentionsError(unresolvedMentions, input.registeredAgentIds);
   }
 
   return {
     to: normalizedExplicit,
-    parsedMentions: tokens
+    parsedMentions: tokens,
+    ...withUnresolved
   };
 }
 

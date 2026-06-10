@@ -19,7 +19,7 @@ import {
 } from "./store.js";
 import { formatRelativeTime, parseFollowUpHints, type FollowUpHint } from "./temporal.js";
 import { dashboardHtml } from "./dashboard-ui.js";
-import { resolveMessageRoute } from "./routing.js";
+import { UnresolvedMentionsError, resolveMessageRoute } from "./routing.js";
 import type { EnrichedRoadmapProgress } from "./room-progress.js";
 import { getRoadmapProgressForRoom } from "./room-progress.js";
 import { defaultWakeCommand, RoomNotifier } from "./room-notify.js";
@@ -397,15 +397,22 @@ async function routeAndPostMessage(
   input: PostMessageInput
 ): Promise<RoomMessage> {
   const agents = await store.listAgents();
-  const route = resolveMessageRoute({
-    body: input.body,
-    to: input.to,
-    registeredAgentIds: agents.map((agent) => agent.id)
-  });
+  let route;
+  try {
+    route = resolveMessageRoute({
+      body: input.body,
+      to: input.to,
+      registeredAgentIds: agents.map((agent) => agent.id)
+    });
+  } catch (error) {
+    if (error instanceof UnresolvedMentionsError) throw new HttpError(400, error.message);
+    throw error;
+  }
   const message = await store.postMessage({
     ...input,
     to: route.to,
-    mentions: route.mentions
+    mentions: route.mentions,
+    unresolvedMentions: route.unresolvedMentions
   });
   if (notifier) await notifier.tick();
   return message;

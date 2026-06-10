@@ -31,6 +31,19 @@ describe("AgentRoomStore", () => {
     ]);
   });
 
+  it("persists unresolved mention metadata on stored messages", async () => {
+    const store = await makeStore();
+
+    const posted = await store.postMessage(
+      message({ from: "user", to: "opus", topic: "CSS", unresolvedMentions: ["media"] })
+    );
+
+    expect(posted.unresolvedMentions).toEqual(["media"]);
+    expect(await store.readMessages({ agent: "opus" })).toMatchObject([
+      { id: "000001", unresolvedMentions: ["media"] }
+    ]);
+  });
+
   it("creates, claims, and updates tasks", async () => {
     const store = await makeStore();
     const task = await store.createTask(taskInput({ title: "Build A1", project: "alpha" }));

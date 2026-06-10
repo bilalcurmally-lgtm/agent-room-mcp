@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  UnresolvedMentionsError,
   messageTargetsAgent,
   normalizeRouteTarget,
   parseMentionTokens,
@@ -55,14 +56,56 @@ describe("routing", () => {
     });
   });
 
-  it("ignores @mentions for agents that have not joined the room", () => {
+  it("rejects unresolved @mentions instead of silently broadcasting", () => {
     expect(resolveAgentId("grok", ["codex-desktop"])).toBeUndefined();
-    expect(
+    expect(() =>
       resolveMessageRoute({
         body: "@grok please review",
         registeredAgentIds: ["codex-desktop"]
       })
-    ).toMatchObject({ to: "all", parsedMentions: ["grok"] });
+    ).toThrow(UnresolvedMentionsError);
+    expect(() =>
+      resolveMessageRoute({
+        body: "@codex fix this",
+        registeredAgentIds: ["claude-opus", "cursor"]
+      })
+    ).toThrow("unknown agent(s): @codex — registered: claude-opus, cursor");
+  });
+
+  it("rejects unresolved @mentions on explicit broadcasts too", () => {
+    expect(() =>
+      resolveMessageRoute({
+        to: "all",
+        body: "@grok please review",
+        registeredAgentIds: ["codex-desktop"]
+      })
+    ).toThrow(UnresolvedMentionsError);
+  });
+
+  it("honors an explicit recipient when body mentions resolve to nobody", () => {
+    expect(
+      resolveMessageRoute({
+        to: "claude-opus",
+        body: "the @media query breaks on mobile",
+        registeredAgentIds: ["claude-opus", "codex-desktop"]
+      })
+    ).toMatchObject({
+      to: "claude-opus",
+      parsedMentions: ["media"],
+      unresolvedMentions: ["media"]
+    });
+  });
+
+  it("surfaces unresolved tokens alongside resolved mentions", () => {
+    const route = resolveMessageRoute({
+      body: "@codex and @nobody take a look",
+      registeredAgentIds: ["codex-desktop"]
+    });
+    expect(route).toMatchObject({
+      to: "codex-desktop",
+      parsedMentions: ["codex", "nobody"],
+      unresolvedMentions: ["nobody"]
+    });
   });
 
   it("routes a single @mention to one agent", () => {

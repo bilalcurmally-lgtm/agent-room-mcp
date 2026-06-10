@@ -27,7 +27,14 @@ When anyone posts with `@all`, `@codex`, `@grok`, `@claude`, or a registered age
 - Single `@mention` → only that agent (if joined)
 - Multiple `@mentions` → only the named joined agents (not everyone)
 
-Unregistered agents are ignored: `@grok` does nothing until `grok` has joined the room.
+Unresolved mentions never widen the audience. If a body contains mention tokens and none of
+them resolve to a joined agent:
+
+- with no explicit recipient (or `to: "all"`), the post is **rejected** with an error naming
+  the registered agents — e.g. `unknown agent(s): @grok — registered: claude-opus, codex-desktop`
+- with an explicit recipient (e.g. `to: claude-opus`), the message routes only to that
+  recipient, and the unmatched tokens are stored on the message as `unresolvedMentions`
+  (this keeps code snippets like `@media` from misrouting anything)
 
 Posting from the dashboard triggers an immediate notifier tick (no 5s wait).
 

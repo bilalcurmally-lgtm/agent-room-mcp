@@ -178,7 +178,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
           ...input,
           project,
           to: route.to,
-          mentions: route.mentions
+          mentions: route.mentions,
+          unresolvedMentions: route.unresolvedMentions
         })
       );
     }
