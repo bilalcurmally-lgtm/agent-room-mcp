@@ -386,7 +386,6 @@ export class AgentRoomStore {
     });
 
     return this.withExclusiveWrite(async () => {
-      const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
       const attachments = await this.resolveAttachmentRefs(input.attachmentIds, input.links);
       const message: RoomMessage = {
         from: input.from,
@@ -401,7 +400,7 @@ export class AgentRoomStore {
         status: compliance.status,
         next: compliance.next,
         phase: compliance.phase,
-        id: nextMessageId(messages),
+        id: await this.nextPersistentMessageId(),
         time: now(),
         ...(attachments?.length ? { attachments } : {})
       };
@@ -1172,6 +1171,30 @@ export class AgentRoomStore {
     }
   }
 
+  // Issues the next message id from message-counter.json instead of re-reading the
+  // whole log on every post. Only call while holding the room write lock. Ids keep
+  // counting across archive/truncation of messages.jsonl; a missing or invalid
+  // counter file is rebuilt from the highest id still in the log.
+  private async nextPersistentMessageId(): Promise<string> {
+    const counterPath = this.path("message-counter.json");
+    let last: number | undefined;
+    try {
+      const parsed = JSON.parse(await readFile(counterPath, "utf8")) as { lastId?: unknown };
+      if (typeof parsed.lastId === "number" && Number.isInteger(parsed.lastId) && parsed.lastId >= 0) {
+        last = parsed.lastId;
+      }
+    } catch {
+      // Fall through to rebuilding from the message log.
+    }
+    if (last === undefined) {
+      const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
+      last = messages.reduce((max, message) => Math.max(max, messageIdValue(message.id)), 0);
+    }
+    const next = last + 1;
+    await writeFile(counterPath, `${JSON.stringify({ lastId: next })}\n`, "utf8");
+    return nextId(next);
+  }
+
   private async withExclusiveWrite<T>(operation: () => Promise<T>): Promise<T> {
     const queued = this.writeQueue.then(() => withFileLock(this.path("room.lock"), operation));
     this.writeQueue = queued.catch(() => undefined);
@@ -1480,17 +1503,6 @@ function nextId(index: number): string {
 export function messageIdValue(id: string | undefined): number {
   const value = Number.parseInt(id ?? "", 10);
   return Number.isFinite(value) ? value : 0;
-}
-
-// Derive the next id from the highest existing id rather than the array length,
-// so a quarantined (skipped) message line can never cause a duplicate id.
-function nextMessageId(messages: RoomMessage[]): string {
-  let max = 0;
-  for (const message of messages) {
-    const value = messageIdValue(message.id);
-    if (value > max) max = value;
-  }
-  return nextId(max + 1);
 }
 
 function now(): string {

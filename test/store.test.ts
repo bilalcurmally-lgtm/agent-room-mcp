@@ -606,6 +606,51 @@ describe("AgentRoomStore", () => {
     ]);
   });
 
+  it("issues unique sequential ids across two store instances on one room", async () => {
+    const first = await makeStore();
+    const second = await AgentRoomStore.open(first.roomDir);
+
+    await Promise.all([
+      ...Array.from({ length: 50 }, (_, i) =>
+        first.postMessage(message({ from: "a", to: "b", topic: `A${i}` }))
+      ),
+      ...Array.from({ length: 50 }, (_, i) =>
+        second.postMessage(message({ from: "b", to: "a", topic: `B${i}` }))
+      )
+    ]);
+
+    const lines = (await readFile(join(first.roomDir, "messages.jsonl"), "utf8"))
+      .split("\n")
+      .filter(Boolean);
+    const ids = lines.map((line) => (JSON.parse(line) as { id: string }).id);
+    expect(ids).toHaveLength(100);
+    expect(new Set(ids).size).toBe(100);
+    expect([...ids].sort()).toEqual(Array.from({ length: 100 }, (_, i) => String(i + 1).padStart(6, "0")));
+  });
+
+  it("keeps message ids monotonic after messages.jsonl is archived away", async () => {
+    const store = await makeStore();
+    await store.postMessage(message({ topic: "one" }));
+    await store.postMessage(message({ topic: "two" }));
+    await store.postMessage(message({ topic: "three" }));
+
+    await writeFile(join(store.roomDir, "messages.jsonl"), "", "utf8");
+
+    const next = await store.postMessage(message({ topic: "four" }));
+    expect(next.id).toBe("000004");
+  });
+
+  it("recovers the id counter from the message log when the counter file is invalid", async () => {
+    const store = await makeStore();
+    await store.postMessage(message({ topic: "one" }));
+    await store.postMessage(message({ topic: "two" }));
+
+    await writeFile(join(store.roomDir, "message-counter.json"), "not json", "utf8");
+
+    const next = await store.postMessage(message({ topic: "three" }));
+    expect(next.id).toBe("000003");
+  });
+
   it("reclaims a lock left behind by a dead process", async () => {
     const store = await makeStore();
     await writeFile(
