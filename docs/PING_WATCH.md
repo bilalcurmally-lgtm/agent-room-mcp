@@ -213,6 +213,9 @@ spawn: 'codex exec "Call check_in as codex-desktop, then handle your unread room
 spawn: 'claude -p "Check in to the agent room as claude-worker and act on unread messages." --allowedTools ...'
 ```
 
+- **Presence-aware:** agents seen live within the last 2 minutes (any tool call bumps
+  their heartbeat) are never spawned for — their own Stop hook or next turn picks the
+  message up. Spawns go to stale or offline agents, the ones that actually need waking.
 - **Debounce:** one spawn per agent per window (default 5 minutes;
   `--spawn-debounce-ms` / `AGENT_ROOM_SPAWN_DEBOUNCE_MS`). A burst of messages spawns one
   process; the headless turn's own `check_in` picks up the rest. Debounced messages still

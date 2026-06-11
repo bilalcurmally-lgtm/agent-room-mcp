@@ -15,6 +15,9 @@ const DEFAULT_INTERVAL_MS = 5000;
 const DEFAULT_LIMIT = 10;
 // One spawn per agent per window: a burst of messages must not spawn a process each.
 export const DEFAULT_SPAWN_DEBOUNCE_MS = 5 * 60 * 1000;
+// Mirrors PRESENCE_LIVE_MS in src/store.ts: an agent seen this recently is live —
+// its own Stop hook or next turn will catch the message, so spawning is redundant.
+export const SPAWN_LIVE_THRESHOLD_MS = 2 * 60 * 1000;
 
 export function resolveWatchOptions(args, env = process.env, repoRoot = process.cwd()) {
   const useWake = args.includes("--wake") || env.AGENT_ROOM_WAKE === "1";
@@ -43,8 +46,12 @@ export function resolveWatchOptions(args, env = process.env, repoRoot = process.
  * agent. Spawn commands come from the agent's wake profile; the debounce stamp
  * keeps a burst of messages from spawning a process each.
  */
-export function resolveSpawnPlan(profile, lastSpawnAtMs, nowMs, debounceMs) {
+export function resolveSpawnPlan(profile, lastSpawnAtMs, nowMs, debounceMs, lastSeenAt) {
   if (!profile?.spawn) return { shouldSpawn: false, skipReason: "no-spawn-command" };
+  const seenMs = lastSeenAt ? Date.parse(lastSeenAt) : Number.NaN;
+  if (Number.isFinite(seenMs) && nowMs - seenMs < SPAWN_LIVE_THRESHOLD_MS) {
+    return { shouldSpawn: false, skipReason: "agent-live" };
+  }
   if (typeof lastSpawnAtMs === "number" && nowMs - lastSpawnAtMs < debounceMs) {
     return { shouldSpawn: false, skipReason: "debounce" };
   }
@@ -115,11 +122,13 @@ export async function runWatchTick(options) {
       const text = formatWatcherNotification(notification);
       const profile = options.profiles?.[notification.agent] ?? wakeProfileForAgent(notification.agent);
       const lastSpawnAt = await readSpawnStamp(options.roomDir, notification.agent);
+      const agentRecord = (snapshot.agents ?? []).find((candidate) => candidate.id === notification.agent);
       const plan = resolveSpawnPlan(
         profile,
         lastSpawnAt,
         Date.now(),
-        options.spawnDebounceMs ?? DEFAULT_SPAWN_DEBOUNCE_MS
+        options.spawnDebounceMs ?? DEFAULT_SPAWN_DEBOUNCE_MS,
+        agentRecord?.lastSeenAt
       );
 
       if (plan.shouldSpawn) {

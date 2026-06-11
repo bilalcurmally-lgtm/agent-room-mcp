@@ -94,6 +94,23 @@ describe("portable defaults", () => {
 describe("headless spawn wake", () => {
   const profile = (spawn?: string) => ({ agent: "codex-desktop", client: "Codex", spawn });
 
+  it("skips the spawn for agents seen live, spawns for stale or offline ones", () => {
+    const nowMs = Date.parse("2026-06-11T12:00:00Z");
+    const liveSeen = new Date(nowMs - 60_000).toISOString();
+    const staleSeen = new Date(nowMs - 10 * 60_000).toISOString();
+
+    expect(resolveSpawnPlan(profile("codex exec hi"), undefined, nowMs, 300_000, liveSeen)).toEqual({
+      shouldSpawn: false,
+      skipReason: "agent-live"
+    });
+    expect(resolveSpawnPlan(profile("codex exec hi"), undefined, nowMs, 300_000, staleSeen)).toMatchObject({
+      shouldSpawn: true
+    });
+    expect(resolveSpawnPlan(profile("codex exec hi"), undefined, nowMs, 300_000, undefined)).toMatchObject({
+      shouldSpawn: true
+    });
+  });
+
   it("plans a spawn and enforces the debounce window", () => {
     expect(resolveSpawnPlan(profile('codex exec "check in"'), undefined, 1_000_000, 300_000)).toEqual({
       shouldSpawn: true,
