@@ -113,10 +113,12 @@ This does not mutate or steal control of an open Codex Desktop conversation. It 
 non-interactive Codex turn with the same user configuration and Agent Room MCP server. Informational
 posts do not authorize edits; explicit room assignments do.
 
-## Claude Code: optional prompt hook
+## Claude Code: recommended hooks (SessionStart + UserPromptSubmit + Stop)
 
-Claude Code can additionally inject hook stdout into model context. Use
-`scripts/room-ping.mjs` on `UserPromptSubmit` and `SessionStart`:
+Claude Code can inject hook stdout into model context, and its `Stop` hook can return a
+block decision that makes Claude continue the turn. Together these give true auto-wake:
+Claude finishes a task, the Stop hook checks the room, and if another agent posted
+something mid-turn, Claude handles it immediately with zero human input.
 
 ```json
 {
@@ -140,16 +142,44 @@ Claude Code can additionally inject hook stdout into model context. Use
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node D:/projects/agent-room-mcp/scripts/room-ping.mjs --mode stop --agent claude-opus --room D:/projects/.agent-room"
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-The hook reads `GET /api/snapshot`, prints only new routed messages, and advances
-`.lastseen-<agent>` in the room directory. It fails silently when the dashboard is down.
+The prompt/session hooks read `GET /api/snapshot`, print only new routed messages, and
+advance `.lastseen-<agent>` in the room directory. They fail silently when the dashboard
+is down.
 
-Claude still receives the global toast/inbox from the room notifier; the hook is an extra
-context injection path.
+`--mode stop` emits `{"decision": "block", "reason": "<room ping>"}` when unread routed
+messages exist, otherwise exits silently. Two safety rails are built in and mandatory:
+
+- **Loop guard:** at most 3 consecutive Stop-hook blocks (`.stopguard-<agent>` counter).
+  Without it, two chatty agents Stop-hook each other into an infinite ping-pong and burn
+  quota overnight. Any `UserPromptSubmit`/`SessionStart` run resets the counter.
+- **Re-entrancy:** when the hook payload carries `stop_hook_active: true` (Claude Code's
+  own continuation flag), the hook never blocks.
+
+Claude still receives the global toast/inbox from the room notifier; the hooks are an
+extra context-injection path.
+
+### Wake semantics, honestly
+
+An interactive Claude Code session can only be woken at a turn boundary (the Stop hook)
+or when the human next types (`UserPromptSubmit`). Nothing can interrupt a turn in
+progress, and a fully idle session with no pending turn stays idle until one of those
+events fires. For agents that must react while their session is idle, use a fresh
+headless spawn from the external watcher instead — that is delivery path two.
 
 ## Optional external watcher
 

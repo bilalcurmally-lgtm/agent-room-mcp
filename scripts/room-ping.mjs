@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 const DEFAULT_AGENT = "claude-opus";
@@ -92,8 +92,79 @@ export async function runRoomPing(options) {
   }
 }
 
+// Max consecutive Stop-hook blocks before going silent. Without this cap, two
+// chatty agents can Stop-hook each other into an infinite ping-pong overnight.
+export const STOP_GUARD_LIMIT = 3;
+
+export function stopGuardPath(roomDir, agent) {
+  return join(roomDir, `.stopguard-${agent}`);
+}
+
+export async function readStopGuard(path) {
+  try {
+    const count = Number.parseInt(await readFile(path, "utf8"), 10);
+    return Number.isFinite(count) && count > 0 ? count : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function writeStopGuard(path, count) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${count}\n`, "utf8");
+}
+
+export async function resetStopGuard(path) {
+  await rm(path, { force: true });
+}
+
+// Claude Code Stop-hook mode: when unread routed messages exist, return a block
+// decision so Claude continues its turn with the ping injected as the reason.
+// Re-entrancy (stop_hook_active) and the consecutive-block guard keep this from
+// looping; the guard resets whenever the user submits a prompt.
+export async function runStopHook(options, payload = {}) {
+  if (payload.stop_hook_active === true) {
+    return { block: false, reason: "", skipped: "stop_hook_active" };
+  }
+
+  const guardPath = stopGuardPath(options.roomDir, options.agent);
+  const blocks = await readStopGuard(guardPath);
+  if (blocks >= STOP_GUARD_LIMIT) {
+    return { block: false, reason: "", skipped: "loop-guard" };
+  }
+
+  const result = await runRoomPing(options);
+  if (!result.output) return { block: false, reason: "" };
+
+  await writeStopGuard(guardPath, blocks + 1);
+  return { block: true, reason: result.output };
+}
+
+async function readStdinJson() {
+  try {
+    if (process.stdin.isTTY) return {};
+    let data = "";
+    for await (const chunk of process.stdin) data += chunk;
+    return data.trim() ? JSON.parse(data) : {};
+  } catch {
+    return {};
+  }
+}
+
 async function main() {
-  const options = resolvePingOptions(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const options = resolvePingOptions(args);
+  const mode = valueAfter(args, "--mode") ?? "prompt";
+
+  if (mode === "stop") {
+    const payload = await readStdinJson();
+    const result = await runStopHook(options, payload);
+    if (result.block) console.log(JSON.stringify({ decision: "block", reason: result.reason }));
+    return;
+  }
+
+  // UserPromptSubmit / SessionStart: a human is present, so the loop guard resets.
+  await resetStopGuard(stopGuardPath(options.roomDir, options.agent));
   const result = await runRoomPing(options);
   if (result.output) console.log(result.output);
 }
