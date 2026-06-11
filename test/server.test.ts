@@ -83,6 +83,21 @@ describe("createServer", () => {
     ).not.toThrow();
   });
 
+  it("defaults check_in to the compact response with a verbose escape hatch", async () => {
+    const server = await createServer(await mkdtemp(join(tmpdir(), "agent-room-server-")));
+
+    const compact = JSON.parse(
+      (await server._registeredTools.check_in.handler({ agent: "opus" })).content[0].text
+    );
+    expect(compact.contextBudget?.mode).toBe("compact");
+    expect(compact.unreadMessages).toBeUndefined();
+
+    const verbose = JSON.parse(
+      (await server._registeredTools.check_in.handler({ agent: "opus", verbose: true })).content[0].text
+    );
+    expect(Array.isArray(verbose.unreadMessages)).toBe(true);
+  });
+
   it("registers coordination tools that let agents check in without manual prompting", async () => {
     const server = await createServer(await mkdtemp(join(tmpdir(), "agent-room-server-")));
 
@@ -92,6 +107,7 @@ describe("createServer", () => {
         "register_agent",
         "check_in",
         "check_in_compact",
+        "read_message",
         "mark_messages_read",
         "set_active_project",
         "get_room_config",

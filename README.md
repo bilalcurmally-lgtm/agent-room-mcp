@@ -102,6 +102,7 @@ For a global room, use a directory outside any single application repo, such as
 
 - `post_message`
 - `read_messages`
+- `read_message`
 - `create_task`
 - `claim_task`
 - `register_agent`
@@ -127,12 +128,13 @@ workspace to open. Example: `audit-cockpit` can point at `D:\projects\audit-cock
 Deleting a registered project removes only the folder record; tagged messages, tasks, and decisions
 remain in the room history.
 
-Agents should treat `check_in_compact` as their first move when a wake watcher resumes them. It
-returns unread message previews, active task headers, alert counts, recent decision headers, room
-status, and current room time without dumping the whole room into context. Use full `check_in` only
-when the compact delta is insufficient. Full `check_in` returns unread messages, assigned tasks,
-open tasks, recent decisions, room status, and stale active items in one auditable response. The
-stale-task threshold defaults to 24 hours and can be changed from the dashboard.
+`check_in` is compact by default: unread message previews (with `fullBodyAvailable: true` when a
+preview is truncated), active task headers, alert counts, recent decision one-liners, room status,
+and current room time — without dumping the whole room into context. Pull any full message body on
+demand with `read_message { id }`. Pass `check_in { verbose: true }` for the legacy firehose
+(full unread bodies, unsliced task lists and decisions) when the summaries are insufficient.
+`check_in_compact` remains as an alias for the compact default. The stale-task threshold defaults
+to 24 hours and can be changed from the dashboard.
 
 For a cheap durable memory layer, export an Obsidian-compatible Markdown vault:
 

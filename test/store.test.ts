@@ -44,6 +44,61 @@ describe("AgentRoomStore", () => {
     ]);
   });
 
+  it("returns one full message by id via readMessage", async () => {
+    const store = await makeStore();
+    const longBody = `Full details: ${"x".repeat(2000)}`;
+    await store.postMessage(message({ topic: "first" }));
+    const target = await store.postMessage(message({ topic: "wanted", body: longBody }));
+
+    await expect(store.readMessage(target.id)).resolves.toMatchObject({
+      id: target.id,
+      topic: "wanted",
+      body: longBody
+    });
+    await expect(store.readMessage("999999")).rejects.toThrow(/no message/i);
+  });
+
+  it("includes a one-line decision summary in compact check-ins", async () => {
+    const store = await makeStore();
+    await store.recordDecision({
+      title: "Lock strategy",
+      decision: "Use a room.lock file\nwith retry and   backoff everywhere.",
+      rationale: "Boring wins."
+    });
+
+    const checkIn = await store.checkInCompact({ agent: "opus" });
+    expect(checkIn.decisions[0]).toMatchObject({
+      title: "Lock strategy",
+      decision: "Use a room.lock file with retry and backoff everywhere."
+    });
+  });
+
+  it("truncates previews at a multibyte-safe boundary and flags the full body", async () => {
+    const store = await makeStore();
+    await store.postMessage(message({ to: "opus", body: "🚀".repeat(400) }));
+
+    const checkIn = await store.checkInCompact({ agent: "opus" });
+    const previewMessage = checkIn.unread.messages[0];
+    expect(previewMessage.preview.isWellFormed()).toBe(true);
+    expect(previewMessage.preview.endsWith("...")).toBe(true);
+    expect(previewMessage.fullBodyAvailable).toBe(true);
+  });
+
+  it("keeps a 50-message, 30-decision compact check-in under the token budget", async () => {
+    const store = await makeStore();
+    const filler = "All edge cases covered and verified across the full test matrix today. ".repeat(7);
+    for (let i = 0; i < 50; i += 1) {
+      await store.postMessage(message({ to: "opus", topic: `Update ${i}`, body: `${filler} #${i}` }));
+    }
+    for (let i = 0; i < 30; i += 1) {
+      await store.recordDecision({ title: `Decision ${i}`, decision: filler, rationale: filler });
+    }
+
+    const checkIn = await store.checkInCompact({ agent: "opus" });
+    // The handoff budget is ~2,000 tokens; ~4 chars/token puts the JSON under 8,000 chars.
+    expect(JSON.stringify(checkIn).length).toBeLessThan(8000);
+  });
+
   it("creates, claims, and updates tasks", async () => {
     const store = await makeStore();
     const task = await store.createTask(taskInput({ title: "Build A1", project: "alpha" }));

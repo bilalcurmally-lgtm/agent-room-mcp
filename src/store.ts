@@ -166,6 +166,8 @@ export interface CompactRoomMessage {
   topic: string;
   preview: string;
   bodyLength: number;
+  /** Present (true) only when the preview is truncated; fetch the rest with read_message. */
+  fullBodyAvailable?: boolean;
   project?: string;
   status?: string;
   next?: string;
@@ -185,6 +187,7 @@ export interface CompactTask {
 export interface CompactDecision {
   id: string;
   title: string;
+  decision: string;
   time: string;
   project?: string;
 }
@@ -546,6 +549,17 @@ export class AgentRoomStore {
       await this.writeAgents(agents);
       return agent;
     });
+  }
+
+  // On-demand pull for one full message body after a compact preview.
+  async readMessage(id: string): Promise<RoomMessage> {
+    validateText("id", id);
+    const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
+    const found = messages.find((message) => message.id === id);
+    if (!found) {
+      throw new Error(`No message with id ${id}. Ids are zero-padded strings like "000042".`);
+    }
+    return found;
   }
 
   async checkIn(input: CheckInInput): Promise<AgentCheckIn> {
@@ -1396,6 +1410,7 @@ function compactMessage(message: RoomMessage, textLimit: number): CompactRoomMes
     topic: message.topic,
     preview,
     bodyLength: message.body.length,
+    ...(preview.length < message.body.length ? { fullBodyAvailable: true } : {}),
     project: message.project,
     status: message.status,
     next: message.next,
@@ -1419,6 +1434,7 @@ function compactDecision(decision: RoomDecision): CompactDecision {
   return {
     id: decision.id,
     title: decision.title,
+    decision: truncateText(decision.decision.replace(/\s+/g, " ").trim(), DEFAULT_COMPACT_TEXT_LIMIT),
     time: decision.time,
     project: decision.project
   };
@@ -1426,8 +1442,18 @@ function compactDecision(decision: RoomDecision): CompactDecision {
 
 function truncateText(text: string, limit: number): string {
   if (limit < 0 || text.length <= limit) return text;
-  if (limit <= 3) return text.slice(0, Math.max(0, limit));
-  return `${text.slice(0, limit - 3)}...`;
+  if (limit <= 3) return surrogateSafeSlice(text, Math.max(0, limit));
+  return `${surrogateSafeSlice(text, limit - 3)}...`;
+}
+
+// Never cut between the halves of a surrogate pair: a preview ending in a lone
+// surrogate is malformed text that renders as U+FFFD and corrupts JSON consumers.
+function surrogateSafeSlice(text: string, end: number): string {
+  if (end > 0 && end < text.length) {
+    const code = text.charCodeAt(end - 1);
+    if (code >= 0xd800 && code <= 0xdbff) end -= 1;
+  }
+  return text.slice(0, end);
 }
 
 // Keep only the N most recently gone-stale items. The full set is oldest-first

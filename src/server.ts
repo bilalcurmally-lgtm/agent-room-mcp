@@ -280,13 +280,24 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     {
       title: "Check in",
       description:
-        "Return an agent's unread messages (most recent 50 by default; full total in unreadCount), assigned tasks, open tasks, recent decisions, and room status. Pass limit to change the inbox size.",
-      inputSchema: CheckInInput
+        "Return an agent's room state as compact summaries: unread message previews (fetch full bodies with read_message), task headers, alert counts, recent decision one-liners, and room status. Pass verbose: true for full message bodies and unsliced lists.",
+      inputSchema: { ...CheckInInput, verbose: z.boolean().optional() }
     },
     async (input) => {
       const config = await store.getConfig();
-      return jsonResult(await store.checkIn({ ...input, project: resolveRoomProject(config, input.project) }));
+      const scoped = { ...input, project: resolveRoomProject(config, input.project) };
+      return jsonResult(input.verbose ? await store.checkIn(scoped) : await store.checkInCompact(scoped));
     }
+  );
+
+  server.registerTool(
+    "read_message",
+    {
+      title: "Read one message",
+      description: "Return one full message (body, attachments, thread refs) by id, for pulls after a compact preview.",
+      inputSchema: { id: z.string().min(1) }
+    },
+    async (input) => jsonResult(await store.readMessage(input.id))
   );
 
   server.registerTool(
