@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "harden-agent-room"]
+  pull_request:
+
+jobs:
+  test:
+    name: build + test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      # Ubuntu is the canary for Windows-only assumptions (paths, shells);
+      # Windows mirrors the original dev environment.
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
