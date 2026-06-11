@@ -347,6 +347,8 @@ export interface RecordDecisionInput {
   title: string;
   decision: string;
   rationale: string;
+  /** Id of an earlier decision this one replaces; must exist (P3-07). */
+  supersedes?: string;
   project?: string;
   source?: string;
   links?: string[];
@@ -832,7 +834,7 @@ export class AgentRoomStore {
         staleMessageCount: allStaleMessages.length,
         staleDecisionCount: allStaleDecisions.length
       },
-      decisions: decisions
+      decisions: excludeSuperseded(decisions)
         .filter((decision) => matchesProject(decision, input.project))
         .slice(-decisionLimit)
         .map(compactDecision),
@@ -1201,6 +1203,9 @@ export class AgentRoomStore {
 
     return this.withExclusiveWrite(async () => {
       const decisions = await this.readDecisions();
+      if (input.supersedes !== undefined && !decisions.some((decision) => decision.id === input.supersedes)) {
+        throw new Error(`Cannot supersede "${input.supersedes}": no such decision exists in this room.`);
+      }
       const linkRows = [
         ...(input.linkAttachments ?? []),
         ...(input.links?.flatMap((url) => {
@@ -1216,6 +1221,7 @@ export class AgentRoomStore {
         title: input.title,
         decision: input.decision,
         rationale: input.rationale,
+        ...(input.supersedes !== undefined ? { supersedes: input.supersedes } : {}),
         project: input.project,
         source: input.source,
         links: input.links,
@@ -1624,6 +1630,15 @@ function compactTask(task: RoomTask): CompactTask {
     project: task.project,
     updatedAt: task.updatedAt
   };
+}
+
+// Drop decisions that a later decision replaced (P3-07). Verbose check_in keeps
+// the full history; the compact view only surfaces what is still in force.
+function excludeSuperseded(decisions: RoomDecision[]): RoomDecision[] {
+  const supersededIds = new Set(
+    decisions.map((decision) => decision.supersedes).filter((id): id is string => Boolean(id))
+  );
+  return decisions.filter((decision) => !supersededIds.has(decision.id));
 }
 
 function compactDecision(decision: RoomDecision): CompactDecision {

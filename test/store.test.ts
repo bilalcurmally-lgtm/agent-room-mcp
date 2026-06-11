@@ -217,6 +217,39 @@ describe("AgentRoomStore", () => {
     });
   });
 
+  it("supersedes decisions and hides them from compact check-ins", async () => {
+    const store = await makeStore();
+    const original = await store.recordDecision({
+      title: "Use REST",
+      decision: "REST endpoints.",
+      rationale: "Simple."
+    });
+    const replacement = await store.recordDecision({
+      title: "Use MCP tools",
+      decision: "MCP tools instead.",
+      rationale: "Direct agent access.",
+      supersedes: original.id
+    });
+
+    expect(replacement.supersedes).toBe(original.id);
+    const compact = await store.checkInCompact({ agent: "opus" });
+    expect(compact.decisions.map((d) => d.id)).toEqual([replacement.id]);
+    const verbose = await store.checkIn({ agent: "opus" });
+    expect(verbose.recentDecisions.map((d) => d.id)).toEqual([original.id, replacement.id]);
+  });
+
+  it("rejects supersedes references that do not exist", async () => {
+    const store = await makeStore();
+    await expect(
+      store.recordDecision({
+        title: "Bad ref",
+        decision: "X.",
+        rationale: "Y.",
+        supersedes: "decision-999999"
+      })
+    ).rejects.toThrow(/decision-999999/);
+  });
+
   it("persists capabilities on registration and returns them from check-in", async () => {
     const store = await makeStore();
     await store.registerAgent({ agent: "codex", capabilities: ["typescript", "review"] });

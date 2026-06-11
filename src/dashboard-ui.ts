@@ -2319,8 +2319,18 @@ export const dashboardHtml = `<!doctype html>
         setEmpty(tasks, "No tasks", "Create one below or claim work from the room feed.");
       }
 
+      const supersededBy = {};
+      for (const decision of snapshot.decisions) {
+        if (decision.supersedes) supersededBy[decision.supersedes] = decision.id;
+      }
       decisions.replaceChildren(...snapshot.decisions.map((decision) => {
-        const item = card("decision", formatTimestamp(decision.time) + " · " + formatRelativeTime(decision.time) + " · " + decision.title, decision.decision);
+        const replacedBy = supersededBy[decision.id];
+        const label = formatTimestamp(decision.time) + " · " + formatRelativeTime(decision.time) + " · " + decision.title + (replacedBy ? " · superseded by " + replacedBy : "");
+        const item = card("decision", label, decision.decision);
+        if (replacedBy) {
+          item.style.opacity = "0.5";
+          item.title = "Superseded by " + replacedBy;
+        }
         appendAttachmentLinks(item, decision.attachments);
         return item;
       }));

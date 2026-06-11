@@ -158,6 +158,7 @@ const RecordDecisionInput = {
   title: z.string().min(1).max(MAX_TEXT_LENGTH),
   decision: z.string().min(1).max(MAX_TEXT_LENGTH),
   rationale: z.string().min(1).max(MAX_TEXT_LENGTH),
+  supersedes: z.string().min(1).optional(),
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
   source: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
   links: z.array(z.string().max(MAX_TEXT_LENGTH)).optional(),
