@@ -132,6 +132,13 @@ const UpdateTaskInput = {
   branch: z.string().max(MAX_TEXT_LENGTH).optional(),
   commit: z.string().max(MAX_TEXT_LENGTH).optional(),
   by: z.string().max(MAX_TEXT_LENGTH).optional(),
+  evidence: z
+    .object({
+      messageId: z.string().min(1).optional(),
+      noteIndex: z.number().int().min(0).optional(),
+      attachmentId: z.string().min(1).optional()
+    })
+    .optional(),
   attachmentIds: z.array(z.string().min(1)).optional(),
   links: z.array(AttachmentLinkInput).optional()
 };
@@ -431,10 +438,21 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     {
       title: "Update task",
       description:
-        "Update a task status, optionally reassign the owner, and optionally append a note with branch or commit links.",
+        "Update a task status, optionally reassign the owner, and optionally append a note with branch or commit links. Marking a task done requires evidence ({messageId | noteIndex | attachmentId}) referencing something that exists in the room.",
       inputSchema: UpdateTaskInput
     },
     async (input) => jsonResult(await store.updateTask(input))
+  );
+
+  server.registerTool(
+    "confirm_handoff",
+    {
+      title: "Confirm handoff",
+      description:
+        "Acknowledge receipt of a handoff message. Stores an auditable reply with type \"ack\" — a handoff is not received until the receiving agent confirms it.",
+      inputSchema: { messageId: z.string().min(1), agent: z.string().min(1).max(MAX_TEXT_LENGTH) }
+    },
+    async (input) => jsonResult(await store.confirmHandoff(input))
   );
 
   server.registerTool(

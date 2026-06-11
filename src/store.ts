@@ -49,6 +49,8 @@ export interface PostMessageInput {
   project?: string;
   source?: string;
   replyTo?: string;
+  /** Message kind marker; "ack" = handoff receipt confirmation (P3-01). */
+  type?: string;
   status?: string;
   next?: string;
   phase?: string;
@@ -91,6 +93,7 @@ export interface RoomTask {
   createdAt: string;
   updatedAt: string;
   notes: TaskNote[];
+  evidence?: TaskEvidence;
   attachments?: AttachmentRef[];
 }
 
@@ -280,6 +283,18 @@ export interface StaleTaskWarning {
   message: string;
 }
 
+/**
+ * Machine-checkable proof for completing a task: a reference to a room message,
+ * an index into the task's own notes, or an attachment. The store validates the
+ * reference exists — an agent literally cannot record a completion that points
+ * at nothing.
+ */
+export interface TaskEvidence {
+  messageId?: string;
+  noteIndex?: number;
+  attachmentId?: string;
+}
+
 export interface UpdateTaskInput {
   taskId: string;
   status: TaskStatus;
@@ -288,6 +303,7 @@ export interface UpdateTaskInput {
   branch?: string;
   commit?: string;
   by?: AgentId;
+  evidence?: TaskEvidence;
   attachmentIds?: string[];
   links?: Array<{ name: string; url: string }>;
 }
@@ -335,6 +351,8 @@ export interface RoomConfig {
   staleTaskHours: number;
   currentUser: string;
   enforceProtocol: boolean;
+  /** When true (default), marking a task done requires a validated evidence reference. */
+  requireEvidence: boolean;
   activeProject?: string;
 }
 
@@ -342,6 +360,7 @@ export interface UpdateConfigInput {
   staleTaskHours?: number;
   currentUser?: string;
   enforceProtocol?: boolean;
+  requireEvidence?: boolean;
   activeProject?: string | null;
 }
 
@@ -416,6 +435,7 @@ export class AgentRoomStore {
         project: input.project,
         source: input.source,
         replyTo: input.replyTo,
+        ...(input.type ? { type: input.type } : {}),
         status: compliance.status,
         next: compliance.next,
         phase: compliance.phase,
@@ -605,6 +625,26 @@ export class AgentRoomStore {
       total: matches.length,
       truncated: recent.length < matches.length
     };
+  }
+
+  // A handoff is not "received" until the receiving agent acks it with a
+  // reference (P3-01). The ack is itself an auditable room message.
+  async confirmHandoff(input: { messageId: string; agent: AgentId }): Promise<RoomMessage> {
+    validateText("agent", input.agent);
+    const original = await this.readMessage(input.messageId);
+    if (original.from === input.agent) {
+      throw new Error(`Agent "${input.agent}" cannot confirm receipt of its own message ${input.messageId}.`);
+    }
+    return this.postMessage({
+      from: input.agent,
+      to: original.from,
+      replyTo: original.id,
+      type: "ack",
+      topic: `ACK: ${original.topic}`,
+      body: `${input.agent} confirms receipt of ${original.id} (${original.topic}).`,
+      project: original.project,
+      source: "confirm_handoff"
+    });
   }
 
   async checkIn(input: CheckInInput): Promise<AgentCheckIn> {
@@ -874,6 +914,7 @@ export class AgentRoomStore {
       staleTaskHours: config.staleTaskHours ?? STALE_TASK_AFTER_HOURS,
       currentUser,
       enforceProtocol: config.enforceProtocol === true,
+      requireEvidence: config.requireEvidence !== false,
       activeProject
     };
   }
@@ -888,6 +929,7 @@ export class AgentRoomStore {
       next.currentUser = trimmed || DEFAULT_CURRENT_USER;
     }
     if (input.enforceProtocol !== undefined) next.enforceProtocol = input.enforceProtocol;
+    if (input.requireEvidence !== undefined) next.requireEvidence = input.requireEvidence;
     if (input.activeProject !== undefined) {
       if (input.activeProject === null || input.activeProject.trim() === "") {
         delete next.activeProject;
@@ -1009,9 +1051,50 @@ export class AgentRoomStore {
           })
         );
       }
+      if (input.status === "done") {
+        const config = await this.getConfig();
+        await this.validateTaskEvidence(task, input.evidence, config.requireEvidence);
+        if (input.evidence) task.evidence = input.evidence;
+      }
       await this.writeTasks(tasks);
       return task;
     });
+  }
+
+  // The anti-fabrication rule (P3-01): "done" must point at proof that exists.
+  // Throws before anything is written, so a rejected completion changes nothing.
+  private async validateTaskEvidence(
+    task: RoomTask,
+    evidence: TaskEvidence | undefined,
+    required: boolean
+  ): Promise<void> {
+    const hasReference =
+      evidence !== undefined &&
+      (evidence.messageId !== undefined || evidence.noteIndex !== undefined || evidence.attachmentId !== undefined);
+
+    if (!hasReference) {
+      if (!required) return;
+      throw new Error(
+        "Marking a task done requires evidence: pass evidence with a messageId, noteIndex, or attachmentId that exists in the room. Set requireEvidence: false in the room config to disable."
+      );
+    }
+
+    if (evidence.messageId !== undefined) {
+      const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
+      if (!messages.some((message) => message.id === evidence.messageId)) {
+        throw new Error(`Evidence messageId "${evidence.messageId}" does not exist in this room.`);
+      }
+    }
+    if (evidence.noteIndex !== undefined) {
+      if (!Number.isInteger(evidence.noteIndex) || evidence.noteIndex < 0 || evidence.noteIndex >= task.notes.length) {
+        throw new Error(
+          `Evidence noteIndex ${evidence.noteIndex} is out of range: task ${task.id} has ${task.notes.length} note(s).`
+        );
+      }
+    }
+    if (evidence.attachmentId !== undefined) {
+      await this.resolveAttachmentRefs([evidence.attachmentId], undefined);
+    }
   }
 
   async appendTaskNote(input: AppendTaskNoteInput): Promise<RoomTask> {

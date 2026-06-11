@@ -126,7 +126,37 @@ Claude posts findings
 Human gives go-ahead or changes direction
 ```
 
+## The Evidence Rule
+
+The hard rule used to be an honor system; the store now enforces it.
+
+**Completing a task requires proof.** `update_task` with `status: "done"` must include
+`evidence` referencing something that exists in the room, or the store rejects it:
+
+```json
+{ "taskId": "task-000042", "status": "done",
+  "evidence": { "messageId": "000137" } }
+```
+
+- `messageId` — a room message (e.g. your completion report with commit ids)
+- `noteIndex` — an index into the task's own notes; a note appended in the same
+  `update_task` call counts (`note: "Tests green, commit abc123", evidence: { "noteIndex": 0 }`
+  on a task with no prior notes)
+- `attachmentId` — an uploaded or linked attachment
+
+The reference is validated — pointing at a message, note, or attachment that does not exist
+fails with an error naming the bad reference. The validated evidence is persisted on the task.
+Rooms that want the old honor system can set `requireEvidence: false` in the room config.
+
+**Handoffs require acknowledgment.** A handoff is not "received" until the receiving agent
+calls `confirm_handoff { messageId, agent }`, which stores a reply message with
+`type: "ack"` addressed to the sender. Do not treat silence as receipt; check for the ack.
+
+Together these make "Codex reviewed this" a machine-checkable chain — task → review note →
+ack — instead of a claim.
+
 ## Hard Rule
 
 An agent must not claim consensus, handoff, review, or another agent's position unless the room
-contains a message, task note, decision, or commit proving it.
+contains a message, task note, decision, or commit proving it. For task completion and handoffs
+this is no longer advisory: the store rejects unproven claims (see The Evidence Rule).

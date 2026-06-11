@@ -154,12 +154,91 @@ describe("AgentRoomStore", () => {
     });
 
     expect(
-      await store.updateTask({ taskId: task.id, status: "done", note: "Tests green" })
+      await store.updateTask({
+        taskId: task.id,
+        status: "done",
+        note: "Tests green",
+        evidence: { noteIndex: 0 }
+      })
     ).toMatchObject({
       id: "task-000001",
       status: "done",
       notes: [expect.objectContaining({ by: "system", body: "Tests green" })]
     });
+  });
+
+  it("rejects marking a task done without evidence", async () => {
+    const store = await makeStore();
+    const task = await store.createTask(taskInput({ title: "Needs proof" }));
+
+    await expect(store.updateTask({ taskId: task.id, status: "done" })).rejects.toThrow(
+      /evidence/i
+    );
+    await expect(
+      store.updateTask({ taskId: task.id, status: "done", evidence: {} })
+    ).rejects.toThrow(/evidence/i);
+    expect((await store.listTasks({})).find((t) => t.id === task.id)?.status).toBe("open");
+  });
+
+  it("accepts done with a valid messageId and persists the evidence", async () => {
+    const store = await makeStore();
+    const task = await store.createTask(taskInput({ title: "Provable" }));
+    const proof = await store.postMessage(message({ topic: "Commit abc123 pushed" }));
+
+    const done = await store.updateTask({
+      taskId: task.id,
+      status: "done",
+      evidence: { messageId: proof.id }
+    });
+    expect(done.status).toBe("done");
+    expect(done.evidence).toEqual({ messageId: proof.id });
+  });
+
+  it("rejects evidence references that do not exist", async () => {
+    const store = await makeStore();
+    const task = await store.createTask(taskInput({ title: "Fake proof" }));
+
+    await expect(
+      store.updateTask({ taskId: task.id, status: "done", evidence: { messageId: "999999" } })
+    ).rejects.toThrow(/999999/);
+    await expect(
+      store.updateTask({ taskId: task.id, status: "done", evidence: { noteIndex: 5 } })
+    ).rejects.toThrow(/noteIndex/);
+  });
+
+  it("allows done without evidence when requireEvidence is disabled", async () => {
+    const store = await makeStore();
+    await store.updateConfig({ requireEvidence: false });
+    const task = await store.createTask(taskInput({ title: "Honor system" }));
+
+    await expect(store.updateTask({ taskId: task.id, status: "done" })).resolves.toMatchObject({
+      status: "done"
+    });
+  });
+
+  it("round-trips a handoff ack as a typed reply message", async () => {
+    const store = await makeStore();
+    const handoff = await store.postMessage(
+      message({ from: "codex", to: "opus", topic: "Take over C2" })
+    );
+
+    const ack = await store.confirmHandoff({ messageId: handoff.id, agent: "opus" });
+    expect(ack).toMatchObject({
+      from: "opus",
+      to: "codex",
+      replyTo: handoff.id,
+      type: "ack"
+    });
+    expect(await store.readMessages({ agent: "codex" })).toMatchObject([
+      expect.objectContaining({ type: "ack", replyTo: handoff.id })
+    ]);
+
+    await expect(store.confirmHandoff({ messageId: "999999", agent: "opus" })).rejects.toThrow(
+      /999999/
+    );
+    await expect(
+      store.confirmHandoff({ messageId: handoff.id, agent: "codex" })
+    ).rejects.toThrow(/own message/i);
   });
 
   it("reassigns tasks and appends task-only notes", async () => {
@@ -415,7 +494,7 @@ describe("AgentRoomStore", () => {
     await store.registerAgent(agent({ agent: "codex" }));
     const stale = await store.createTask(taskInput({ title: "Re-check old work", owner: "codex", project: "alpha" }));
     const done = await store.createTask(taskInput({ title: "Old but done", owner: "codex", project: "alpha" }));
-    await store.updateTask({ taskId: done.id, status: "done" });
+    await store.updateTask({ taskId: done.id, status: "done", note: "Verified.", evidence: { noteIndex: 0 } });
     const fresh = await store.createTask(taskInput({ title: "Fresh work", owner: "codex", project: "alpha" }));
     const tasks = JSON.parse(await readFile(join(store.roomDir, "tasks.json"), "utf8"));
     for (const task of tasks) {
