@@ -2212,13 +2212,18 @@ export const dashboardHtml = `<!doctype html>
 
       renderFeedMessages(snapshot.messages);
 
-      agents.replaceChildren(...snapshot.agents.map((agent) =>
-        card(
-          "agent",
-          agent.id,
-          (agent.role || agent.displayName || "Registered agent") + " · updated " + formatTimestamp(agent.updatedAt) + " · " + formatRelativeTime(agent.updatedAt)
-        )
-      ));
+      agents.replaceChildren(...snapshot.agents.map((agent) => {
+        // Presence thresholds mirror presenceState() in store.ts: live < 2 min, stale < 30 min.
+        const seenMs = agent.lastSeenAt ? Date.parse(agent.lastSeenAt) : NaN;
+        const ageMs = Date.now() - seenMs;
+        const presence = !isFinite(seenMs) ? "offline" : ageMs < 120000 ? "live" : ageMs < 1800000 ? "stale" : "offline";
+        const doing = agent.status
+          ? agent.status.state + (agent.status.detail ? " on " + agent.status.detail : "")
+          : (agent.role || agent.displayName || "Registered agent");
+        const caps = agent.capabilities && agent.capabilities.length ? " · [" + agent.capabilities.join(", ") + "]" : "";
+        const seen = agent.lastSeenAt ? " · seen " + formatRelativeTime(agent.lastSeenAt) : " · never seen";
+        return card("agent", agent.id + " · " + presence, doing + caps + seen);
+      }));
       if (!snapshot.agents.length) {
         setEmpty(agents, "No agents checked in", "Agents appear after register_agent and check_in from an MCP client.");
       }

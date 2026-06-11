@@ -98,6 +98,23 @@ describe("createServer", () => {
     expect(Array.isArray(verbose.unreadMessages)).toBe(true);
   });
 
+  it("bumps the calling agent's lastSeenAt on tool calls", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-server-"));
+    const server = await createServer(roomDir);
+    const store = await AgentRoomStore.open(roomDir);
+    await store.registerAgent({ agent: "codex" });
+
+    await server._registeredTools.post_message.handler({
+      from: "codex",
+      to: "all",
+      topic: "Presence",
+      body: "[STATUS: working]\nPing.\n[NEXT: keep going]"
+    });
+
+    const agent = (await store.listAgents()).find((candidate) => candidate.id === "codex");
+    expect(agent?.lastSeenAt).toBeTruthy();
+  });
+
   it("registers coordination tools that let agents check in without manual prompting", async () => {
     const server = await createServer(await mkdtemp(join(tmpdir(), "agent-room-server-")));
 
@@ -110,6 +127,7 @@ describe("createServer", () => {
         "read_message",
         "search_messages",
         "confirm_handoff",
+        "set_status",
         "mark_messages_read",
         "set_active_project",
         "get_room_config",

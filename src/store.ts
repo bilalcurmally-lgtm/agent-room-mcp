@@ -115,15 +115,40 @@ export interface RegisterAgentInput {
   agent: AgentId;
   displayName?: string;
   role?: string;
+  capabilities?: string[];
+}
+
+export type AgentStatusState = "working" | "idle" | "blocked";
+
+export interface AgentStatus {
+  state: AgentStatusState;
+  detail?: string;
+  at: string;
 }
 
 export interface RoomAgent {
   id: AgentId;
   displayName?: string;
   role?: string;
+  capabilities?: string[];
+  status?: AgentStatus;
+  /** Bumped on any tool call by this agent; drives live/stale/offline presence. */
+  lastSeenAt?: string;
   lastReadMessageId?: string;
   registeredAt: string;
   updatedAt: string;
+}
+
+export const PRESENCE_LIVE_MS = 2 * 60 * 1000;
+export const PRESENCE_STALE_MS = 30 * 60 * 1000;
+
+export function presenceState(lastSeenAt: string | undefined, nowMs: number): "live" | "stale" | "offline" {
+  const seen = lastSeenAt ? Date.parse(lastSeenAt) : Number.NaN;
+  if (!Number.isFinite(seen)) return "offline";
+  const age = nowMs - seen;
+  if (age < PRESENCE_LIVE_MS) return "live";
+  if (age < PRESENCE_STALE_MS) return "stale";
+  return "offline";
 }
 
 export interface UpsertProjectInput {
@@ -197,7 +222,7 @@ export interface CompactDecision {
 }
 
 export interface CompactAgentCheckIn {
-  agent: Pick<RoomAgent, "id" | "displayName" | "role" | "lastReadMessageId">;
+  agent: Pick<RoomAgent, "id" | "displayName" | "role" | "capabilities" | "status" | "lastReadMessageId">;
   roomTime: RoomTime;
   projectRecord?: RoomProject;
   unread: {
@@ -548,7 +573,9 @@ export class AgentRoomStore {
       if (existing) {
         existing.displayName = input.displayName ?? existing.displayName;
         existing.role = input.role ?? existing.role;
+        if (input.capabilities !== undefined) existing.capabilities = input.capabilities;
         existing.updatedAt = time;
+        existing.lastSeenAt = time;
         await this.writeAgents(agents);
         return existing;
       }
@@ -557,6 +584,8 @@ export class AgentRoomStore {
         id: input.agent,
         displayName: input.displayName,
         role: input.role,
+        ...(input.capabilities !== undefined ? { capabilities: input.capabilities } : {}),
+        lastSeenAt: time,
         registeredAt: time,
         updatedAt: time
       };
@@ -564,6 +593,42 @@ export class AgentRoomStore {
       agents.push(agent);
       await this.writeAgents(agents);
       return agent;
+    });
+  }
+
+  async setStatus(input: { agent: AgentId; status: AgentStatusState; detail?: string }): Promise<RoomAgent> {
+    validateText("agent", input.agent);
+    validateText("detail", input.detail);
+    if (!["working", "idle", "blocked"].includes(input.status)) {
+      throw new Error(`status must be working, idle, or blocked (got "${input.status}").`);
+    }
+
+    return this.withExclusiveWrite(async () => {
+      const agents = await this.readAgents();
+      let agent = agents.find((candidate) => candidate.id === input.agent);
+      const time = now();
+      if (!agent) {
+        agent = { id: input.agent, registeredAt: time, updatedAt: time };
+        agents.push(agent);
+      }
+      agent.status = { state: input.status, ...(input.detail ? { detail: input.detail } : {}), at: time };
+      agent.lastSeenAt = time;
+      agent.updatedAt = time;
+      await this.writeAgents(agents);
+      return agent;
+    });
+  }
+
+  // Heartbeat: any tool call by an agent bumps lastSeenAt. Unknown agents are a
+  // no-op — presence tracking must never make another tool call fail.
+  async touchAgent(agentId: AgentId): Promise<void> {
+    if (!agentId) return;
+    await this.withExclusiveWrite(async () => {
+      const agents = await this.readAgents();
+      const agent = agents.find((candidate) => candidate.id === agentId);
+      if (!agent) return;
+      agent.lastSeenAt = now();
+      await this.writeAgents(agents);
     });
   }
 
@@ -582,6 +647,7 @@ export class AgentRoomStore {
       const latestVisibleId = messages.at(-1)?.id;
       agent.lastReadMessageId = input.throughId ?? latestVisibleId ?? agent.lastReadMessageId;
       agent.updatedAt = now();
+      agent.lastSeenAt = agent.updatedAt;
       await this.writeAgents(agents);
       return agent;
     });
@@ -745,6 +811,8 @@ export class AgentRoomStore {
         id: agent.id,
         displayName: agent.displayName,
         role: agent.role,
+        capabilities: agent.capabilities,
+        status: agent.status,
         lastReadMessageId: agent.lastReadMessageId
       },
       roomTime: createRoomTime(),

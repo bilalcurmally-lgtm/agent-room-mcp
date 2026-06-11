@@ -82,7 +82,8 @@ const ClaimTaskInput = {
 const RegisterAgentInput = {
   agent: z.string().min(1).max(MAX_TEXT_LENGTH),
   displayName: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
-  role: z.string().min(1).max(MAX_TEXT_LENGTH).optional()
+  role: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+  capabilities: z.array(z.string().min(1).max(MAX_TEXT_LENGTH)).optional()
 };
 
 const RegisterProjectInput = {
@@ -181,6 +182,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => {
       const config = await store.getConfig();
       assertProtocolCompliant(input, config.enforceProtocol);
+      await store.touchAgent(input.from);
       const project = resolveRoomProject(config, input.project);
       const agents = await store.listAgents();
       const route = resolveMessageRoute({
@@ -269,7 +271,10 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       description: "Claim an open task for an agent.",
       inputSchema: ClaimTaskInput
     },
-    async (input) => jsonResult(await store.claimTask(input))
+    async (input) => {
+      await store.touchAgent(input.agent);
+      return jsonResult(await store.claimTask(input));
+    }
   );
 
   server.registerTool(
@@ -292,6 +297,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     },
     async (input) => {
       const config = await store.getConfig();
+      await store.touchAgent(input.agent);
       const scoped = { ...input, project: resolveRoomProject(config, input.project) };
       return jsonResult(input.verbose ? await store.checkIn(scoped) : await store.checkInCompact(scoped));
     }
@@ -452,7 +458,25 @@ export async function createServer(roomDir: string): Promise<McpServer> {
         "Acknowledge receipt of a handoff message. Stores an auditable reply with type \"ack\" — a handoff is not received until the receiving agent confirms it.",
       inputSchema: { messageId: z.string().min(1), agent: z.string().min(1).max(MAX_TEXT_LENGTH) }
     },
-    async (input) => jsonResult(await store.confirmHandoff(input))
+    async (input) => {
+      await store.touchAgent(input.agent);
+      return jsonResult(await store.confirmHandoff(input));
+    }
+  );
+
+  server.registerTool(
+    "set_status",
+    {
+      title: "Set agent status",
+      description:
+        "Declare what an agent is doing (working | idle | blocked, with optional detail). Also bumps the agent's presence heartbeat.",
+      inputSchema: {
+        agent: z.string().min(1).max(MAX_TEXT_LENGTH),
+        status: z.enum(["working", "idle", "blocked"]),
+        detail: z.string().max(MAX_TEXT_LENGTH).optional()
+      }
+    },
+    async (input) => jsonResult(await store.setStatus(input))
   );
 
   server.registerTool(

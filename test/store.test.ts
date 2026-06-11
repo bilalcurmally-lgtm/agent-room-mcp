@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import {
   AgentRoomStore,
+  presenceState,
   resolveRoomProject,
   type CreateTaskInput,
   type RegisterAgentInput,
@@ -214,6 +215,46 @@ describe("AgentRoomStore", () => {
     await expect(store.updateTask({ taskId: task.id, status: "done" })).resolves.toMatchObject({
       status: "done"
     });
+  });
+
+  it("persists capabilities on registration and returns them from check-in", async () => {
+    const store = await makeStore();
+    await store.registerAgent({ agent: "codex", capabilities: ["typescript", "review"] });
+
+    expect((await store.listAgents()).find((a) => a.id === "codex")?.capabilities).toEqual([
+      "typescript",
+      "review"
+    ]);
+    const checkIn = await store.checkInCompact({ agent: "codex" });
+    expect(checkIn.agent.capabilities).toEqual(["typescript", "review"]);
+  });
+
+  it("records agent status and bumps lastSeenAt", async () => {
+    const store = await makeStore();
+    const updated = await store.setStatus({ agent: "codex", status: "working", detail: "C2 review" });
+
+    expect(updated.status).toMatchObject({ state: "working", detail: "C2 review" });
+    expect(updated.lastSeenAt).toBeTruthy();
+    await expect(store.setStatus({ agent: "codex", status: "sleeping" as never })).rejects.toThrow(
+      /status/
+    );
+  });
+
+  it("bumps lastSeenAt via touchAgent without failing for unknown agents", async () => {
+    const store = await makeStore();
+    await store.registerAgent({ agent: "codex" });
+
+    await store.touchAgent("codex");
+    expect((await store.listAgents()).find((a) => a.id === "codex")?.lastSeenAt).toBeTruthy();
+    await expect(store.touchAgent("ghost")).resolves.toBeUndefined();
+  });
+
+  it("classifies presence as live, stale, or offline", async () => {
+    const nowMs = Date.parse("2026-06-11T12:00:00Z");
+    expect(presenceState(new Date(nowMs - 60_000).toISOString(), nowMs)).toBe("live");
+    expect(presenceState(new Date(nowMs - 10 * 60_000).toISOString(), nowMs)).toBe("stale");
+    expect(presenceState(new Date(nowMs - 31 * 60_000).toISOString(), nowMs)).toBe("offline");
+    expect(presenceState(undefined, nowMs)).toBe("offline");
   });
 
   it("round-trips a handoff ack as a typed reply message", async () => {
