@@ -32,6 +32,7 @@ export const DEFAULT_INBOX_LIMIT = 50;
 // true totals so nothing is silently hidden.
 export const DEFAULT_STALE_LIMIT = 5;
 export const DEFAULT_COMPACT_INBOX_LIMIT = 10;
+export const DEFAULT_SEARCH_LIMIT = 10;
 export const DEFAULT_COMPACT_DECISION_LIMIT = 3;
 export const DEFAULT_COMPACT_TEXT_LIMIT = 320;
 
@@ -240,6 +241,21 @@ export interface AgentCheckIn {
 }
 
 export type { StaleItemWarning };
+
+export interface SearchMessagesInput {
+  keyword?: string;
+  project?: string;
+  from?: AgentId;
+  to?: AgentId | "all";
+  afterId?: string;
+  limit?: number;
+}
+
+export interface SearchMessagesResult {
+  items: CompactRoomMessage[];
+  total: number;
+  truncated: boolean;
+}
 
 export interface ListTasksInput {
   status?: TaskStatus;
@@ -560,6 +576,35 @@ export class AgentRoomStore {
       throw new Error(`No message with id ${id}. Ids are zero-padded strings like "000042".`);
     }
     return found;
+  }
+
+  // Plain case-insensitive substring search over topic+body — boring and
+  // auditable on purpose. Returns previews; pull full bodies via readMessage.
+  async searchMessages(input: SearchMessagesInput): Promise<SearchMessagesResult> {
+    validateText("keyword", input.keyword);
+    validateText("project", input.project);
+    validateText("from", input.from);
+    validateText("to", input.to);
+
+    const keyword = input.keyword?.toLowerCase();
+    const afterValue = input.afterId ? messageIdValue(input.afterId) : undefined;
+    const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
+    const matches = messages.filter((message) => {
+      if (input.project && !matchesProject(message, input.project)) return false;
+      if (input.from && message.from !== input.from) return false;
+      if (input.to && message.to !== input.to) return false;
+      if (afterValue !== undefined && messageIdValue(message.id) <= afterValue) return false;
+      if (keyword && !`${message.topic}\n${message.body}`.toLowerCase().includes(keyword)) return false;
+      return true;
+    });
+
+    const limit = input.limit ?? DEFAULT_SEARCH_LIMIT;
+    const recent = matches.length > limit ? matches.slice(matches.length - limit) : matches;
+    return {
+      items: recent.map((message) => compactMessage(message, DEFAULT_COMPACT_TEXT_LIMIT)),
+      total: matches.length,
+      truncated: recent.length < matches.length
+    };
   }
 
   async checkIn(input: CheckInInput): Promise<AgentCheckIn> {

@@ -103,6 +103,7 @@ For a global room, use a directory outside any single application repo, such as
 - `post_message`
 - `read_messages`
 - `read_message`
+- `search_messages`
 - `create_task`
 - `claim_task`
 - `register_agent`

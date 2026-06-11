@@ -99,6 +99,48 @@ describe("AgentRoomStore", () => {
     expect(JSON.stringify(checkIn).length).toBeLessThan(8000);
   });
 
+  it("searches messages by keyword and project, returning previews", async () => {
+    const store = await makeStore();
+    await store.postMessage(
+      message({ from: "codex", to: "opus", topic: "Routing bug", body: "The alias fallback is broken.", project: "alpha" })
+    );
+    await store.postMessage(
+      message({ from: "opus", to: "codex", topic: "Deploy", body: "Routing fix shipped to staging.", project: "beta" })
+    );
+    await store.postMessage(
+      message({ from: "codex", to: "opus", topic: "Lunch", body: "Unrelated chatter.", project: "alpha" })
+    );
+
+    const result = await store.searchMessages({ keyword: "routing", project: "alpha" });
+    expect(result.total).toBe(1);
+    expect(result.truncated).toBe(false);
+    expect(result.items).toMatchObject([{ id: "000001", topic: "Routing bug", preview: "The alias fallback is broken." }]);
+    expect(result.items[0]).not.toHaveProperty("body");
+
+    const byKeyword = await store.searchMessages({ keyword: "ROUTING" });
+    expect(byKeyword.total).toBe(2);
+  });
+
+  it("applies from/to/afterId filters and the default search limit", async () => {
+    const store = await makeStore();
+    for (let i = 0; i < 15; i += 1) {
+      await store.postMessage(message({ from: "codex", to: "opus", topic: `Ping ${i}`, body: "status check" }));
+    }
+    await store.postMessage(message({ from: "opus", to: "codex", topic: "Reply", body: "status received" }));
+
+    const fromCodex = await store.searchMessages({ from: "codex", keyword: "status" });
+    expect(fromCodex.total).toBe(15);
+    expect(fromCodex.items).toHaveLength(10);
+    expect(fromCodex.truncated).toBe(true);
+    expect(fromCodex.items.at(-1)?.topic).toBe("Ping 14");
+
+    const after = await store.searchMessages({ keyword: "status", afterId: "000014" });
+    expect(after.items.map((item) => item.id)).toEqual(["000015", "000016"]);
+
+    const toCodex = await store.searchMessages({ to: "codex" });
+    expect(toCodex.items.map((item) => item.topic)).toEqual(["Reply"]);
+  });
+
   it("creates, claims, and updates tasks", async () => {
     const store = await makeStore();
     const task = await store.createTask(taskInput({ title: "Build A1", project: "alpha" }));

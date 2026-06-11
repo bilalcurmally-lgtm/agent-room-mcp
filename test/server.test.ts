@@ -108,6 +108,7 @@ describe("createServer", () => {
         "check_in",
         "check_in_compact",
         "read_message",
+        "search_messages",
         "mark_messages_read",
         "set_active_project",
         "get_room_config",

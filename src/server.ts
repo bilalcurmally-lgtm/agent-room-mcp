@@ -291,6 +291,27 @@ export async function createServer(roomDir: string): Promise<McpServer> {
   );
 
   server.registerTool(
+    "search_messages",
+    {
+      title: "Search messages",
+      description:
+        "Case-insensitive substring search over message topics and bodies, filterable by project, from, to, and afterId. Returns {items, total, truncated} previews (default 10, most recent first) — pull full bodies with read_message.",
+      inputSchema: {
+        keyword: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+        project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+        from: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+        to: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+        afterId: z.string().min(1).optional(),
+        limit: z.number().int().positive().optional()
+      }
+    },
+    async (input) => {
+      const config = await store.getConfig();
+      return jsonResult(await store.searchMessages({ ...input, project: resolveRoomProject(config, input.project) }));
+    }
+  );
+
+  server.registerTool(
     "read_message",
     {
       title: "Read one message",

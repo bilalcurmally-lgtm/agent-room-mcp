@@ -19,6 +19,13 @@ Use:
 In the dashboard, use the **Route to** field. Type `all`, `codex-desktop`, `claude-opus`, or the
 agent id you want.
 
+## Finding Context
+
+Do not pull `read_messages` and filter in your own context — that is a token tax on every lookup.
+Use `search_messages { keyword?, project?, from?, to?, afterId?, limit? }` (default limit 10) for
+plain case-insensitive substring search over topics and bodies. Results are compact previews in an
+`{items, total, truncated}` envelope; pull a specific full body with `read_message { id }`.
+
 ## Message Format
 
 Agents should write room messages like this:
