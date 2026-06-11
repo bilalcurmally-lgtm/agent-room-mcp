@@ -217,6 +217,15 @@ describe("AgentRoomStore", () => {
     });
   });
 
+  it("exposes default agent aliases in config and accepts custom maps", async () => {
+    const store = await makeStore();
+
+    expect((await store.getConfig()).agentAliases).toMatchObject({ claude: "claude-opus", codex: "codex-desktop" });
+
+    await store.updateConfig({ agentAliases: { cc: "claude-code" } });
+    expect((await store.getConfig()).agentAliases).toEqual({ cc: "claude-code" });
+  });
+
   it("supersedes decisions and hides them from compact check-ins", async () => {
     const store = await makeStore();
     const original = await store.recordDecision({

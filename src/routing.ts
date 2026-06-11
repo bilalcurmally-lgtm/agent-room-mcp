@@ -55,9 +55,13 @@ function resolveGrokAgentId(registeredAgentIds: readonly string[]): string | und
   return registeredAgentMatch(registeredAgentIds, "grok") ?? registeredAgentMatch(registeredAgentIds, "grok-cli");
 }
 
-export function resolveAgentId(token: string, registeredAgentIds: readonly string[]): string | undefined {
+export function resolveAgentId(
+  token: string,
+  registeredAgentIds: readonly string[],
+  aliases: Record<string, string> = AGENT_ALIASES
+): string | undefined {
   const normalized = token.toLowerCase();
-  const alias = AGENT_ALIASES[normalized];
+  const alias = aliases[normalized];
   if (alias === "all") return "all";
   if (alias) {
     const exact = registeredAgentMatch(registeredAgentIds, alias);
@@ -70,19 +74,25 @@ export function resolveAgentId(token: string, registeredAgentIds: readonly strin
   return undefined;
 }
 
-export function normalizeRouteTarget(to: string, registeredAgentIds: readonly string[]): string {
+export function normalizeRouteTarget(
+  to: string,
+  registeredAgentIds: readonly string[],
+  aliases: Record<string, string> = AGENT_ALIASES
+): string {
   const trimmed = to.trim();
   if (!trimmed || trimmed === "all") return trimmed || "all";
-  return resolveAgentId(trimmed, registeredAgentIds) ?? trimmed;
+  return resolveAgentId(trimmed, registeredAgentIds, aliases) ?? trimmed;
 }
 
 export function resolveMessageRoute(input: {
   body: string;
   to?: string;
   registeredAgentIds: readonly string[];
+  aliases?: Record<string, string>;
 }): ResolvedRoute {
+  const aliases = input.aliases ?? AGENT_ALIASES;
   const explicitTo = input.to?.trim();
-  const normalizedExplicit = normalizeRouteTarget(explicitTo || "all", input.registeredAgentIds);
+  const normalizedExplicit = normalizeRouteTarget(explicitTo || "all", input.registeredAgentIds, aliases);
   const tokens = parseMentionTokens(input.body);
 
   if (!tokens.length) {
@@ -92,7 +102,7 @@ export function resolveMessageRoute(input: {
     };
   }
 
-  const resolvedByToken = tokens.map((token) => resolveAgentId(token, input.registeredAgentIds));
+  const resolvedByToken = tokens.map((token) => resolveAgentId(token, input.registeredAgentIds, aliases));
   const resolved = resolvedByToken.filter((value): value is string => Boolean(value));
   const unresolvedMentions = tokens.filter((_, index) => !resolvedByToken[index]);
   const withUnresolved = unresolvedMentions.length ? { unresolvedMentions } : {};

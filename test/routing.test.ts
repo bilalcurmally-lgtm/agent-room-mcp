@@ -22,6 +22,20 @@ describe("routing", () => {
     expect(resolveAgentId("codex-desktop", registered)).toBe("codex-desktop");
   });
 
+  it("routes mentions through custom aliases from room config", () => {
+    const aliases = { cc: "claude-code", boss: "billu-desktop" };
+    expect(resolveAgentId("cc", ["claude-code"], aliases)).toBe("claude-code");
+    expect(
+      resolveMessageRoute({
+        body: "@boss please approve",
+        registeredAgentIds: ["billu-desktop", "claude-code"],
+        aliases
+      })
+    ).toMatchObject({ to: "billu-desktop", parsedMentions: ["boss"] });
+    // Custom maps replace the defaults: @codex is not special unless mapped.
+    expect(resolveAgentId("codex", ["codex-desktop"], { cc: "claude-code" })).toBeUndefined();
+  });
+
   it("falls back to the literal registered id when the alias target is absent", () => {
     expect(resolveAgentId("claude", ["claude", "cursor"])).toBe("claude");
     expect(

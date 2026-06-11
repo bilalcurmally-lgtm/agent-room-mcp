@@ -13,7 +13,7 @@ import {
   type UploadAttachmentInput
 } from "./attachments.js";
 import { assessProtocolCompliance, enrichMessageBody } from "./protocol.js";
-import { messageTargetsAgent } from "./routing.js";
+import { AGENT_ALIASES, messageTargetsAgent } from "./routing.js";
 import { buildStaleItemWarnings, type StaleItemWarning } from "./temporal.js";
 import { createRoomTime, type RoomTime } from "./time.js";
 
@@ -380,6 +380,8 @@ export interface RoomConfig {
   enforceProtocol: boolean;
   /** When true (default), marking a task done requires a validated evidence reference. */
   requireEvidence: boolean;
+  /** Mention alias map (token → agent id); defaults to AGENT_ALIASES from routing. */
+  agentAliases: Record<string, string>;
   activeProject?: string;
 }
 
@@ -388,6 +390,7 @@ export interface UpdateConfigInput {
   currentUser?: string;
   enforceProtocol?: boolean;
   requireEvidence?: boolean;
+  agentAliases?: Record<string, string>;
   activeProject?: string | null;
 }
 
@@ -985,6 +988,10 @@ export class AgentRoomStore {
       currentUser,
       enforceProtocol: config.enforceProtocol === true,
       requireEvidence: config.requireEvidence !== false,
+      agentAliases:
+        config.agentAliases && typeof config.agentAliases === "object"
+          ? config.agentAliases
+          : AGENT_ALIASES,
       activeProject
     };
   }
@@ -1000,6 +1007,7 @@ export class AgentRoomStore {
     }
     if (input.enforceProtocol !== undefined) next.enforceProtocol = input.enforceProtocol;
     if (input.requireEvidence !== undefined) next.requireEvidence = input.requireEvidence;
+    if (input.agentAliases !== undefined) next.agentAliases = input.agentAliases;
     if (input.activeProject !== undefined) {
       if (input.activeProject === null || input.activeProject.trim() === "") {
         delete next.activeProject;

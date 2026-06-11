@@ -397,12 +397,14 @@ async function routeAndPostMessage(
   input: PostMessageInput
 ): Promise<RoomMessage> {
   const agents = await store.listAgents();
+  const config = await store.getConfig();
   let route;
   try {
     route = resolveMessageRoute({
       body: input.body,
       to: input.to,
-      registeredAgentIds: agents.map((agent) => agent.id)
+      registeredAgentIds: agents.map((agent) => agent.id),
+      aliases: config.agentAliases
     });
   } catch (error) {
     if (error instanceof UnresolvedMentionsError) throw new HttpError(400, error.message);

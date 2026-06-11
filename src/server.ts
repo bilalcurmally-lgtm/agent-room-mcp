@@ -189,7 +189,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       const route = resolveMessageRoute({
         body: input.body,
         to: input.to,
-        registeredAgentIds: agents.map((agent) => agent.id)
+        registeredAgentIds: agents.map((agent) => agent.id),
+        aliases: config.agentAliases
       });
       return jsonResult(
         await store.postMessage({
