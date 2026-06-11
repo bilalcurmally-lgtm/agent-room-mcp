@@ -6,10 +6,11 @@
 // <room>/obsidian/<project>, then open that folder in Obsidian.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
+const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? join(homedir(), ".agent-room");
 const DEFAULT_PROJECT = process.env.AGENT_ROOM_PROJECT ?? "agent-room-mcp";
 const DEFAULT_MESSAGE_LIMIT = 20;
 

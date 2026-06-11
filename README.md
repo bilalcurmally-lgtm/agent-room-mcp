@@ -15,8 +15,14 @@ The goal is a boring, auditable shared room:
 ```powershell
 npm install
 npm run build
-node dist/server.js --room D:\projects\.agent-room
+node dist/server.js
 ```
+
+`--room <path>` picks the room directory explicitly. Without it, scripts and watchers default
+to `~/.agent-room` (created on first write), and the `AGENT_ROOM_DIR` environment variable
+overrides the default everywhere. The examples in this README use an explicit
+`--room D:\projects\.agent-room` from the original dev setup — substitute your own path or
+rely on the default.
 
 After `npm link`, the global command is:
 

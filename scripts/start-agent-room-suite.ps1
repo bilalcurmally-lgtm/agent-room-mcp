@@ -1,5 +1,5 @@
 param(
-  [string]$Room = "D:\projects\.agent-room",
+  [string]$Room = $(if ($env:AGENT_ROOM_DIR) { $env:AGENT_ROOM_DIR } else { Join-Path $env:USERPROFILE ".agent-room" }),
   [int]$Port = 4777,
   [switch]$NoOpen,
   [switch]$SkipBuild,

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { wakeProfileForAgent } from "./agent-wake.mjs";
 import { formatRoomPing, selectUnreadMessages } from "./room-ping.mjs";
 
 const DEFAULT_AGENTS = "auto";
-const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
+const DEFAULT_ROOM_DIR = join(homedir(), ".agent-room");
 const DEFAULT_SNAPSHOT_URL =
   process.env.AGENT_ROOM_SNAPSHOT_URL ?? "http://127.0.0.1:4777/api/snapshot?project=all";
 const DEFAULT_INTERVAL_MS = 5000;

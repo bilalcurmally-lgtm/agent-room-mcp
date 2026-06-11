@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
 import { access, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -49,7 +50,7 @@ export async function runWakeDoctor(options: WakeDoctorOptions): Promise<WakeDoc
   const serverEntry = options.serverEntry ?? join(options.repoRoot, "dist", "server.js");
 
   checks.push(await checkFile("compiled MCP server", serverEntry, "Run npm run build."));
-  checks.push(await checkFile("room directory", options.roomDir, "Create or pass --room D:\\projects\\.agent-room."));
+  checks.push(await checkFile("room directory", options.roomDir, "Create it or pass --room <path> (default: ~/.agent-room)."));
   checks.push(await checkFile("messages log", join(options.roomDir, "messages.jsonl"), "Start the room once so storage files are created."));
 
   if (!options.skipMcp) {
@@ -385,7 +386,7 @@ function parseArgs(argv: readonly string[]): WakeDoctorOptions {
   };
   return {
     agent: value("--agent") ?? "codex-desktop",
-    roomDir: value("--room") ?? process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room",
+    roomDir: value("--room") ?? process.env.AGENT_ROOM_DIR ?? join(homedir(), ".agent-room"),
     repoRoot,
     project: value("--project") ?? process.env.AGENT_ROOM_PROJECT ?? "agent-room-mcp",
     dashboardUrl: value("--dashboard-url") ?? process.env.AGENT_ROOM_DASHBOARD_URL ?? "http://127.0.0.1:4777",

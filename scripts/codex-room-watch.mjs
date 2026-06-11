@@ -2,12 +2,13 @@
 import { spawn } from "node:child_process";
 import { watch } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const AGENT = "codex-desktop";
 const TRUSTED_WORK_ASSIGNERS = new Set(["Bilal", "claude-opus"]);
-const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
+const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? join(homedir(), ".agent-room");
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const DEFAULT_WAKE_TIMEOUT_MS = Number(process.env.CODEX_ROOM_WAKE_TIMEOUT_MS ?? 120_000);
 const AGENT_SENDER_PATTERN = /\b(codex|claude|grok|cursor|antigravity|wake-probe)\b/i;

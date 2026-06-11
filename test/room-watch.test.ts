@@ -1,6 +1,6 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -79,6 +79,15 @@ describe("room-watch helpers", () => {
       )
     ).toEqual(["grok", "codex-desktop"]);
     expect(defaultWakeCommand("D:/projects/agent-room-mcp")).toContain("wake-agent.ps1");
+  });
+});
+
+describe("portable defaults", () => {
+  it("defaults the room directory to ~/.agent-room, not a machine-specific path", () => {
+    const options = resolveWatchOptions([], {}, "C:/repo");
+    expect(options.roomDir).toBe(join(homedir(), ".agent-room"));
+    expect(resolveWatchOptions(["--room", "X:/elsewhere"], {}, "C:/repo").roomDir).toBe("X:/elsewhere");
+    expect(resolveWatchOptions([], { AGENT_ROOM_DIR: "Y:/env-room" }, "C:/repo").roomDir).toBe("Y:/env-room");
   });
 });
 

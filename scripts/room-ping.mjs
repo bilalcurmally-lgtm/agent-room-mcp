@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 const DEFAULT_AGENT = "claude-opus";
-const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
+const DEFAULT_ROOM_DIR = join(homedir(), ".agent-room");
 const DEFAULT_SNAPSHOT_URL =
   process.env.AGENT_ROOM_SNAPSHOT_URL ?? "http://127.0.0.1:4777/api/snapshot?project=all";
 const DEFAULT_LIMIT = 10;

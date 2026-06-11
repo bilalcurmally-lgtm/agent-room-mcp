@@ -1,6 +1,6 @@
 param(
   [string]$Agent = "codex-desktop",
-  [string]$Room = "D:\projects\.agent-room",
+  [string]$Room = $(if ($env:AGENT_ROOM_DIR) { $env:AGENT_ROOM_DIR } else { Join-Path $env:USERPROFILE ".agent-room" }),
   [string]$StartScript = "",
   [string]$PidPath = "",
   [int]$IntervalSeconds = 15,

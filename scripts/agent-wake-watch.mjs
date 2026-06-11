@@ -18,11 +18,12 @@
 import { spawn } from "node:child_process";
 import { watch } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
-const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? "D:\\projects\\.agent-room";
+const DEFAULT_ROOM_DIR = process.env.AGENT_ROOM_DIR ?? join(homedir(), ".agent-room");
 const DEFAULT_WAKE_TIMEOUT_MS = Number(process.env.AGENT_WAKE_TIMEOUT_MS ?? 180_000);
 const DEFAULT_WAKE_WINDOW_MS = Number(process.env.AGENT_WAKE_WINDOW_MS ?? 10 * 60_000);
 const DEFAULT_MAX_WAKES_PER_WINDOW = Number(process.env.AGENT_WAKE_MAX_PER_WINDOW ?? 2);
