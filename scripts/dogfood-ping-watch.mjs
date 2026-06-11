@@ -61,11 +61,48 @@ async function main() {
       throw new Error("default wake command does not target wake-agent.ps1");
     }
 
+    await store.postMessage({
+      from: "user",
+      to: "codex-desktop",
+      topic: "Dogfood spawn",
+      body: "Spawn path verification message.",
+      project: "agent-room-mcp"
+    });
+    const spawnOptions = {
+      agents: ["codex-desktop"],
+      roomDir,
+      snapshotUrl,
+      limit: 10,
+      once: true,
+      dryRun: false,
+      spawnDebounceMs: 60_000,
+      profiles: { "codex-desktop": { agent: "codex-desktop", spawn: 'node -e "process.exit(0)"' } }
+    };
+    await runWatchTick(spawnOptions);
+    const spawnLog = (await readFile(join(roomDir, "notifications.jsonl"), "utf8")).trim().split("\n");
+    const spawnRecord = JSON.parse(spawnLog.at(-1));
+    if (spawnRecord.spawn?.exitCode !== 0) {
+      throw new Error("spawn path did not log a successful headless turn to notifications.jsonl");
+    }
+    await store.postMessage({
+      from: "user",
+      to: "codex-desktop",
+      topic: "Dogfood spawn 2",
+      body: "Must be debounced.",
+      project: "agent-room-mcp"
+    });
+    await runWatchTick(spawnOptions);
+    const debounced = (await readFile(join(roomDir, "notifications.jsonl"), "utf8")).trim().split("\n");
+    if (debounced.length !== spawnLog.length) {
+      throw new Error("second tick inside the debounce window spawned again");
+    }
+
     console.log("Dogfood ping/watch verification passed.");
     console.log(`  room-ping first: ${first.totalUnread} unread, advanced to ${first.highestId}`);
     console.log(`  room-ping second: silent`);
     console.log(`  room-watch: ${watch.notifications.length} notification(s)`);
     console.log(`  wake command: ${wakeCommand}`);
+    console.log(`  spawn path: exit ${spawnRecord.spawn.exitCode}, debounce honored`);
   } finally {
     await dashboard.close();
     await rm(roomDir, { recursive: true, force: true });

@@ -200,6 +200,27 @@ npm run watch-room -- --agents auto --wake --once --dry-run
 `npm run start-suite` starts the dashboard only. Pass `-WithWatch` to also spawn the external
 watcher.
 
+### Headless spawn (hookless clients)
+
+For clients with no hook system (Codex Desktop, Grok, Antigravity), toast + inbox is
+notify-and-pray. A wake profile in `scripts/agent-wake.mjs` can instead declare an optional
+`spawn` command; when the watcher routes a message to that agent, it starts a fresh headless
+turn:
+
+```js
+spawn: 'codex exec "Call check_in as codex-desktop, then handle your unread room messages."'
+// or a headless Claude worker:
+spawn: 'claude -p "Check in to the agent room as claude-worker and act on unread messages." --allowedTools ...'
+```
+
+- **Debounce:** one spawn per agent per window (default 5 minutes;
+  `--spawn-debounce-ms` / `AGENT_ROOM_SPAWN_DEBOUNCE_MS`). A burst of messages spawns one
+  process; the headless turn's own `check_in` picks up the rest. Debounced messages still
+  surface via the toast/inbox fallback.
+- **Audit:** every spawn is appended to `notifications.jsonl` with the command and exit
+  code, so the dashboard Notifications panel shows spawned wakes next to toast deliveries.
+- Profiles without a `spawn` command keep today's toast + inbox behavior.
+
 ### Wake command (`wake-agent.ps1`)
 
 When `--wake` is set (or `npm run start-watch`), the watcher runs `scripts/wake-agent.ps1`

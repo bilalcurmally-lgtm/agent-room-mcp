@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { wakeProfileForAgent } from "./agent-wake.mjs";
 import { formatRoomPing, selectUnreadMessages } from "./room-ping.mjs";
 
 const DEFAULT_AGENTS = "auto";
@@ -11,6 +12,8 @@ const DEFAULT_SNAPSHOT_URL =
   process.env.AGENT_ROOM_SNAPSHOT_URL ?? "http://127.0.0.1:4777/api/snapshot?project=all";
 const DEFAULT_INTERVAL_MS = 5000;
 const DEFAULT_LIMIT = 10;
+// One spawn per agent per window: a burst of messages must not spawn a process each.
+export const DEFAULT_SPAWN_DEBOUNCE_MS = 5 * 60 * 1000;
 
 export function resolveWatchOptions(args, env = process.env, repoRoot = process.cwd()) {
   const useWake = args.includes("--wake") || env.AGENT_ROOM_WAKE === "1";
@@ -25,10 +28,26 @@ export function resolveWatchOptions(args, env = process.env, repoRoot = process.
     snapshotUrl: valueAfter(args, "--url") ?? env.AGENT_ROOM_SNAPSHOT_URL ?? DEFAULT_SNAPSHOT_URL,
     intervalMs: Number(valueAfter(args, "--interval-ms") ?? env.AGENT_ROOM_WATCH_INTERVAL_MS ?? DEFAULT_INTERVAL_MS),
     limit: Number(valueAfter(args, "--limit") ?? env.AGENT_ROOM_PING_LIMIT ?? DEFAULT_LIMIT),
+    spawnDebounceMs: Number(
+      valueAfter(args, "--spawn-debounce-ms") ?? env.AGENT_ROOM_SPAWN_DEBOUNCE_MS ?? DEFAULT_SPAWN_DEBOUNCE_MS
+    ),
     dryRun: args.includes("--dry-run"),
     once: args.includes("--once"),
     wake: useWake
   };
+}
+
+/**
+ * Decide whether a routed message should spawn a fresh headless turn for the
+ * agent. Spawn commands come from the agent's wake profile; the debounce stamp
+ * keeps a burst of messages from spawning a process each.
+ */
+export function resolveSpawnPlan(profile, lastSpawnAtMs, nowMs, debounceMs) {
+  if (!profile?.spawn) return { shouldSpawn: false, skipReason: "no-spawn-command" };
+  if (typeof lastSpawnAtMs === "number" && nowMs - lastSpawnAtMs < debounceMs) {
+    return { shouldSpawn: false, skipReason: "debounce" };
+  }
+  return { shouldSpawn: true, command: profile.spawn };
 }
 
 export function defaultWakeCommand(repoRoot) {
@@ -93,7 +112,24 @@ export async function runWatchTick(options) {
 
     for (const notification of notifications) {
       const text = formatWatcherNotification(notification);
-      if (options.dryRun || !options.command) {
+      const profile = options.profiles?.[notification.agent] ?? wakeProfileForAgent(notification.agent);
+      const lastSpawnAt = await readSpawnStamp(options.roomDir, notification.agent);
+      const plan = resolveSpawnPlan(
+        profile,
+        lastSpawnAt,
+        Date.now(),
+        options.spawnDebounceMs ?? DEFAULT_SPAWN_DEBOUNCE_MS
+      );
+
+      if (plan.shouldSpawn) {
+        if (options.dryRun) {
+          console.log(`${text}\nSPAWN (dry-run) ${notification.agent}: ${plan.command}`);
+        } else {
+          const exitCode = await runSpawnCommand(plan.command, notification.agent, text, options.roomDir);
+          await writeSpawnStamp(options.roomDir, notification.agent, Date.now());
+          await appendSpawnLog(options.roomDir, notification, plan.command, exitCode, text);
+        }
+      } else if (options.dryRun || !options.command) {
         console.log(text);
       } else {
         await runNotifyCommand(options.command, notification.agent, text, options.roomDir);
@@ -145,6 +181,60 @@ async function runNotifyCommand(command, agent, text, roomDir) {
       else reject(new Error(`Notify command exited ${code}`));
     });
   });
+}
+
+// Runs the profile's headless spawn command. Resolves with the exit code —
+// a failed turn is logged, not thrown, so one bad spawn cannot kill the watcher.
+async function runSpawnCommand(command, agent, text, roomDir) {
+  return new Promise((resolveExit) => {
+    const child = spawn(command, {
+      shell: true,
+      stdio: "ignore",
+      windowsHide: true,
+      env: {
+        ...process.env,
+        AGENT_ROOM_AGENT: agent,
+        AGENT_ROOM_PING: text,
+        AGENT_ROOM_DIR: roomDir
+      }
+    });
+    child.once("error", () => resolveExit(-1));
+    child.once("exit", (code) => resolveExit(code ?? -1));
+  });
+}
+
+// Same JSONL the dashboard Notifications panel reads (NotificationDelivery shape
+// plus a spawn block), so spawned wakes are auditable next to toast deliveries.
+async function appendSpawnLog(roomDir, notification, command, exitCode, text) {
+  const record = {
+    at: new Date().toISOString(),
+    agent: notification.agent,
+    messageIds: notification.messages.map((message) => message.id),
+    total: notification.total,
+    text: `[spawn exit ${exitCode}] ${text}`,
+    spawn: { command, exitCode }
+  };
+  await mkdir(roomDir, { recursive: true });
+  await appendFile(join(roomDir, "notifications.jsonl"), `${JSON.stringify(record)}\n`, "utf8");
+}
+
+async function readSpawnStamp(roomDir, agent) {
+  try {
+    const value = Number.parseInt(await readFile(spawnStampPath(roomDir, agent), "utf8"), 10);
+    return Number.isFinite(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function writeSpawnStamp(roomDir, agent, atMs) {
+  const path = spawnStampPath(roomDir, agent);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${atMs}\n`, "utf8");
+}
+
+function spawnStampPath(roomDir, agent) {
+  return join(roomDir, `.watch-spawnat-${agent}`);
 }
 
 async function readLastSeen(path) {

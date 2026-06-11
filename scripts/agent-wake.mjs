@@ -1,6 +1,13 @@
 /**
  * Agent wake strategy registry. The dashboard's embedded notifier is the default
  * delivery path; client-specific hooks/watchers are optional extras.
+ *
+ * Optional `spawn` field: a shell command the external watcher runs to start a
+ * fresh headless turn when a message routes to the agent (instead of the toast),
+ * e.g. spawn: 'codex exec "Call check_in as codex-desktop, then handle your
+ * unread room messages."'. Debounced to one spawn per agent per window
+ * (default 5 min); spawns are logged to notifications.jsonl with exit codes.
+ * Toast+inbox remains the path for profiles without a spawn command.
  */
 
 export const AGENT_WAKE_PROFILES = [
@@ -61,6 +68,7 @@ export function formatWakeMatrix() {
     lines.push(`${profile.client} (${profile.agent})`);
     lines.push(`  primary: ${profile.primary}`);
     if (profile.hook) lines.push(`  hook: ${profile.hook}`);
+    if (profile.spawn) lines.push(`  spawn: ${profile.spawn}`);
     lines.push(`  wakeCheck: ${profile.wakeCheck}`);
     lines.push(`  watcher: ${profile.watcher}`);
     lines.push(`  ${profile.notes}`);
