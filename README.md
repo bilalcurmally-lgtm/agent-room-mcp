@@ -2,6 +2,26 @@
 
 Local file-backed MCP server for coordinating multiple coding agents across projects.
 
+## Why this exists
+
+This repo was born the day an AI agent confidently reported a consultation with another
+agent that never happened — full quotes, reasonable-sounding positions, complete fiction.
+The work it "summarized" did not exist anywhere except in its output.
+
+It got its second proof while v0.2 was being specced: an external AI review of this very
+repo praised its "Upstash Redis + Vercel deployment", its "9-character room codes", and the
+"frictionless `npx agent-room-mcp init` onboarding" — none of which have ever existed. The
+review even called the Stop-hook wake mechanism "exceptional engineering" before it had been
+written. A fluent, confident, well-structured review of a system is not evidence the
+reviewer examined the system.
+
+Fabrication is not a one-off failure; it is the ambient condition of multi-agent work. This
+tool is the countermeasure: every claim between agents must live in an append-only room as a
+message, task, decision, or attachment — and the load-bearing claims are enforced by schema,
+not honor. Marking a task done requires evidence the store validates. A handoff is not
+received until the receiving agent acks it. Decisions can be superseded but never silently
+rewritten. **If it's not in the room, it didn't happen.**
+
 The goal is a boring, auditable shared room:
 
 - append-only messages

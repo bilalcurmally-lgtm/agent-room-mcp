@@ -1,6 +1,6 @@
 {
   "name": "@billu/agent-room-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Local file-backed MCP room for coordinating multiple coding agents across projects.",
   "keywords": [
