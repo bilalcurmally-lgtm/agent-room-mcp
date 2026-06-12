@@ -1,9 +1,28 @@
 {
   "name": "@billu/agent-room-mcp",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Local file-backed MCP room for coordinating multiple coding agents across projects.",
+  "keywords": [
+    "mcp",
+    "multi-agent",
+    "agents",
+    "audit",
+    "coordination"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/billu/agent-room-mcp.git"
+  },
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "docs/AGENT_PROTOCOL.md",
+    "docs/MCP_CLIENT_SETUP.md",
+    "docs/PING_WATCH.md"
+  ],
   "bin": {
     "agent-room-mcp": "./dist/server.js",
     "agent-room-dashboard": "./dist/dashboard.js"
