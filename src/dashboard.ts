@@ -425,6 +425,7 @@ async function routeRequest(
       project: optionalProject(body.project),
       source: "dashboard",
       attachmentIds: optionalStringArray(body.attachmentIds),
+      links: optionalStringArray(body.links),
       linkAttachments: optionalAttachmentLinks(body.linkAttachments)
     });
     sendJson(response, 201, decision);

@@ -1128,6 +1128,7 @@ export const dashboardHtml = `<!doctype html>
     const decisionTitle = document.getElementById("decision-title");
     const decisionBody = document.getElementById("decision-body");
     const decisionRationale = document.getElementById("decision-rationale");
+    let promotedDecisionMessageId = "";
     const refreshButton = document.getElementById("refresh");
     const roomClock = document.getElementById("room-clock");
     const sideToggle = document.getElementById("side-toggle");
@@ -2359,6 +2360,15 @@ export const dashboardHtml = `<!doctype html>
       el.style.setProperty("--agent-line", "oklch(0.45 0.08 " + hue + ")");
     }
 
+    function promoteMessageToDecision(message) {
+      promotedDecisionMessageId = message.id;
+      decisionTitle.value = message.topic || "Decision from " + message.id;
+      decisionBody.value = message.body || "";
+      decisionRationale.value = "";
+      setActiveNav("decisions");
+      decisionRationale.focus();
+    }
+
     function renderMessageCard(message, showProject) {
       const item = document.createElement("div");
       item.className = "message";
@@ -2396,6 +2406,14 @@ export const dashboardHtml = `<!doctype html>
       faint.textContent = faintBits;
 
       head.append(avatar, author, route, faint);
+
+      const decisionButton = document.createElement("button");
+      decisionButton.type = "button";
+      decisionButton.className = "inline-toggle";
+      decisionButton.textContent = "→ decision";
+      decisionButton.title = "Promote this message to a decision";
+      decisionButton.addEventListener("click", () => promoteMessageToDecision(message));
+      head.append(decisionButton);
 
       // U5: surface a protocol violation right on the card, not only in Alerts.
       if (nonCompliantMessageIds.has(message.id)) {
@@ -2947,11 +2965,18 @@ export const dashboardHtml = `<!doctype html>
       await fetch("/api/decisions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, decision, rationale, project: projectForWrite() })
+        body: JSON.stringify({
+          title,
+          decision,
+          rationale,
+          project: projectForWrite(),
+          links: promotedDecisionMessageId ? ["room:" + promotedDecisionMessageId] : undefined
+        })
       });
       decisionTitle.value = "";
       decisionBody.value = "";
       decisionRationale.value = "";
+      promotedDecisionMessageId = "";
       await loadSnapshot();
     });
 

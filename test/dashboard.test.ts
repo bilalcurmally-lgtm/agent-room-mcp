@@ -449,6 +449,8 @@ describe("dashboard server", () => {
     expect(html).toContain("seedPosterOnce");
     expect(html).toContain('id="message-from"');
     expect(html).toContain("renderPostAsSelect");
+    expect(html).toContain("promoteMessageToDecision");
+    expect(html).toContain("→ decision");
     expect(html).toContain('id="feed" class="feed"');
   });
 
@@ -769,6 +771,37 @@ describe("dashboard server", () => {
       .then((res) => res.json());
     expect(decisionSnapshot.decisions).toMatchObject([{ title: "Needle decision" }]);
     expect(decisionSnapshot.messages).toEqual([]);
+  });
+
+  it("records dashboard decisions with source message references", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const source = await store.postMessage({
+      from: "user",
+      to: "all",
+      topic: "Make it a decision",
+      body: "Use the boring path.",
+      project: "agent-room-mcp"
+    });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/api/decisions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: source.topic,
+        decision: source.body,
+        rationale: "Promoted from the room feed.",
+        project: "agent-room-mcp",
+        links: [`room:${source.id}`]
+      })
+    });
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      title: "Make it a decision",
+      links: [`room:${source.id}`]
+    });
   });
 
   it("filters snapshot history by agent and date range", async () => {
