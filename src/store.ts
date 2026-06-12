@@ -51,6 +51,8 @@ export interface PostMessageInput {
   replyTo?: string;
   /** Message kind marker; "ack" = handoff receipt confirmation (P3-01). */
   type?: string;
+  /** Conversation this message belongs to (P3-02); must reference an open thread. */
+  threadId?: string;
   status?: string;
   next?: string;
   phase?: string;
@@ -66,6 +68,8 @@ export interface RoomMessage extends Omit<PostMessageInput, "attachmentIds" | "l
 
 export interface ReadMessagesInput {
   agent: AgentId;
+  /** Thread scope: a thread id, or "all" to bypass the agent's active thread. */
+  thread?: string;
   sinceId?: string;
   includeBroadcasts?: boolean;
   project?: string;
@@ -132,6 +136,8 @@ export interface RoomAgent {
   role?: string;
   capabilities?: string[];
   status?: AgentStatus;
+  /** Thread this agent is working in; check_in/read default to it (P3-02). */
+  activeThreadId?: string;
   /** Bumped on any tool call by this agent; drives live/stale/offline presence. */
   lastSeenAt?: string;
   lastReadMessageId?: string;
@@ -149,6 +155,24 @@ export function presenceState(lastSeenAt: string | undefined, nowMs: number): "l
   if (age < PRESENCE_LIVE_MS) return "live";
   if (age < PRESENCE_STALE_MS) return "stale";
   return "offline";
+}
+
+/**
+ * The unit of work is a named conversation, not a message (P3-02). Stored in
+ * threads.jsonl append-only: every state change appends a full record and the
+ * last record per id wins, so history stays auditable.
+ */
+export interface RoomThread {
+  id: string;
+  project: string;
+  name: string;
+  goal?: string;
+  status: "open" | "closed";
+  outcome?: string;
+  digestPath?: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string;
 }
 
 export interface UpsertProjectInput {
@@ -178,6 +202,8 @@ export interface MarkMessagesReadInput {
 export interface CheckInInput {
   agent: AgentId;
   project?: string;
+  /** Thread scope: a thread id, or "all" to bypass the agent's active thread. */
+  thread?: string;
   includeBroadcasts?: boolean;
   limit?: number;
 }
@@ -241,6 +267,10 @@ export interface CompactAgentCheckIn {
     staleDecisionCount: number;
   };
   decisions: CompactDecision[];
+  /** The thread this agent is working in, when one is set (P3-02). */
+  activeThread?: Pick<RoomThread, "id" | "name" | "goal" | "project">;
+  /** Knowledge carryover: the last closed-thread digests in the same project. */
+  recentThreadDigests?: Array<Pick<RoomThread, "name" | "outcome" | "digestPath"> & { threadId: string }>;
   status: Pick<RoomStatus, "roomDir" | "messages" | "tasks" | "decisions" | "agents">;
   contextBudget: {
     mode: "compact";
@@ -273,6 +303,7 @@ export type { StaleItemWarning };
 export interface SearchMessagesInput {
   keyword?: string;
   project?: string;
+  threadId?: string;
   from?: AgentId;
   to?: AgentId | "all";
   afterId?: string;
@@ -454,6 +485,7 @@ export class AgentRoomStore {
     });
 
     return this.withExclusiveWrite(async () => {
+      if (input.threadId) await this.assertThreadOpen(input.threadId);
       const attachments = await this.resolveAttachmentRefs(input.attachmentIds, input.links);
       const message: RoomMessage = {
         from: input.from,
@@ -466,6 +498,7 @@ export class AgentRoomStore {
         source: input.source,
         replyTo: input.replyTo,
         ...(input.type ? { type: input.type } : {}),
+        ...(input.threadId ? { threadId: input.threadId } : {}),
         status: compliance.status,
         next: compliance.next,
         phase: compliance.phase,
@@ -558,7 +591,137 @@ export class AgentRoomStore {
 
   async readMessages(input: ReadMessagesInput): Promise<RoomMessage[]> {
     const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
-    return filterVisibleMessages(messages, input, input.limit);
+    const visible = filterVisibleMessages(messages, input, input.limit);
+    if (input.thread === "all") return visible;
+    const threadId =
+      input.thread ?? (await this.readAgents()).find((agent) => agent.id === input.agent)?.activeThreadId;
+    if (!threadId) return visible;
+    // Active-thread scoping (P3-02): unthreaded messages stay visible so legacy
+    // posts and room-wide announcements are never silently hidden.
+    return visible.filter((message) => message.threadId === threadId || message.threadId === undefined);
+  }
+
+  // Thread context for compact check-ins: the active thread plus the last 3
+  // closed-thread digests in the same project (Claude-Projects-style carryover).
+  private async compactThreadContext(
+    agent: RoomAgent
+  ): Promise<Pick<CompactAgentCheckIn, "activeThread" | "recentThreadDigests">> {
+    if (!agent.activeThreadId) return {};
+    const threads = await this.readThreads();
+    const active = threads.find((thread) => thread.id === agent.activeThreadId);
+    if (!active) return {};
+    const recent = threads
+      .filter((thread) => thread.project === active.project && thread.status === "closed")
+      .slice(-3)
+      .map((thread) => ({
+        threadId: thread.id,
+        name: thread.name,
+        outcome: thread.outcome,
+        digestPath: thread.digestPath
+      }));
+    return {
+      activeThread: { id: active.id, name: active.name, goal: active.goal, project: active.project },
+      ...(recent.length ? { recentThreadDigests: recent } : {})
+    };
+  }
+
+  // --- Threads (P3-02): named conversations within a project ---
+
+  private async readThreads(): Promise<RoomThread[]> {
+    const records = await this.readJsonl<RoomThread>("threads.jsonl");
+    const byId = new Map<string, RoomThread>();
+    for (const record of records) byId.set(record.id, record);
+    return [...byId.values()];
+  }
+
+  private async appendThread(record: RoomThread): Promise<void> {
+    await appendFile(this.path("threads.jsonl"), `${JSON.stringify(record)}\n`, "utf8");
+  }
+
+  private async assertThreadOpen(threadId: string): Promise<RoomThread> {
+    const thread = (await this.readThreads()).find((candidate) => candidate.id === threadId);
+    if (!thread) throw new Error(`No thread with id ${threadId}.`);
+    if (thread.status === "closed") throw new Error(`Thread ${threadId} (${thread.name}) is closed.`);
+    return thread;
+  }
+
+  async createThread(input: { project: string; name: string; goal?: string }): Promise<RoomThread> {
+    validateText("project", input.project);
+    validateText("name", input.name);
+    validateText("goal", input.goal);
+
+    return this.withExclusiveWrite(async () => {
+      const threads = await this.readThreads();
+      let max = 0;
+      for (const thread of threads) {
+        const value = Number.parseInt(thread.id.replace("thread-", ""), 10);
+        if (Number.isFinite(value) && value > max) max = value;
+      }
+      const time = now();
+      const thread: RoomThread = {
+        id: `thread-${nextId(max + 1)}`,
+        project: input.project,
+        name: input.name,
+        ...(input.goal ? { goal: input.goal } : {}),
+        status: "open",
+        createdAt: time,
+        updatedAt: time
+      };
+      await this.appendThread(thread);
+      return thread;
+    });
+  }
+
+  // Closing a thread generates its digest (P3-03 machinery) so the knowledge
+  // carries into the project's next threads.
+  async closeThread(input: { threadId: string; outcome: string }): Promise<RoomThread> {
+    validateText("outcome", input.outcome);
+
+    return this.withExclusiveWrite(async () => {
+      const thread = await this.assertThreadOpen(input.threadId);
+      const digest = await this.generateDigest({ project: thread.project, threadId: thread.id });
+      const time = now();
+      const closed: RoomThread = {
+        ...thread,
+        status: "closed",
+        outcome: input.outcome,
+        digestPath: digest.path,
+        updatedAt: time,
+        closedAt: time
+      };
+      await this.appendThread(closed);
+      return closed;
+    });
+  }
+
+  async listThreads(input: { project?: string; status?: "open" | "closed" } = {}): Promise<RoomThread[]> {
+    validateText("project", input.project);
+    const threads = await this.readThreads();
+    return threads.filter(
+      (thread) =>
+        (input.project === undefined || thread.project === input.project) &&
+        (input.status === undefined || thread.status === input.status)
+    );
+  }
+
+  async setActiveThread(input: { agent: AgentId; threadId: string }): Promise<RoomAgent> {
+    validateText("agent", input.agent);
+    await this.assertThreadOpen(input.threadId);
+
+    return this.withExclusiveWrite(async () => {
+      const agents = await this.readAgents();
+      let agent = agents.find((candidate) => candidate.id === input.agent);
+      const time = now();
+      if (!agent) {
+        agent = { id: input.agent, registeredAt: time, updatedAt: time };
+        agents.push(agent);
+      }
+      agent.activeThreadId = input.threadId;
+      agent.lastSeenAt = time;
+      agent.updatedAt = time;
+      await this.writeAgents(agents);
+      return agent;
+    });
   }
 
   async listMessages(): Promise<RoomMessage[]> {
@@ -682,6 +845,7 @@ export class AgentRoomStore {
     const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
     const matches = messages.filter((message) => {
       if (input.project && !matchesProject(message, input.project)) return false;
+      if (input.threadId && message.threadId !== input.threadId) return false;
       if (input.from && message.from !== input.from) return false;
       if (input.to && message.to !== input.to) return false;
       if (afterValue !== undefined && messageIdValue(message.id) <= afterValue) return false;
@@ -728,6 +892,7 @@ export class AgentRoomStore {
 
     const allUnread = await this.readMessages({
       agent: input.agent,
+      thread: input.thread,
       sinceId: agent.lastReadMessageId,
       includeBroadcasts: input.includeBroadcasts,
       project: input.project
@@ -786,6 +951,7 @@ export class AgentRoomStore {
       ?? (await this.registerAgent({ agent: input.agent }));
     const allUnread = await this.readMessages({
       agent: input.agent,
+      thread: input.thread,
       sinceId: agent.lastReadMessageId,
       includeBroadcasts: input.includeBroadcasts,
       project: input.project
@@ -841,6 +1007,7 @@ export class AgentRoomStore {
         .filter((decision) => matchesProject(decision, input.project))
         .slice(-decisionLimit)
         .map(compactDecision),
+      ...(await this.compactThreadContext(agent)),
       status: {
         roomDir: status.roomDir,
         messages: status.messages,
@@ -1248,17 +1415,28 @@ export class AgentRoomStore {
   // P3-03: "what happened while I was away" as a deterministic markdown rollup —
   // counts, decision titles, task states, unanswered direct mentions. No LLM call,
   // so the digest is auditable and snapshot-testable.
-  async generateDigest(input: { project: string; since?: string; now?: Date }): Promise<{ path: string; markdown: string }> {
+  async generateDigest(input: {
+    project: string;
+    since?: string;
+    threadId?: string;
+    now?: Date;
+  }): Promise<{ path: string; markdown: string }> {
     validateText("project", input.project);
     validateText("since", input.since);
     const sinceMs = input.since ? Date.parse(input.since) : undefined;
     const inWindow = (time?: string) =>
       sinceMs === undefined || (time !== undefined && Date.parse(time) >= sinceMs);
+    const inThread = (item: { threadId?: string }) =>
+      input.threadId === undefined || item.threadId === input.threadId;
 
     const allMessages = await this.readJsonl<RoomMessage>("messages.jsonl");
-    const messages = allMessages.filter((m) => matchesProject(m, input.project) && inWindow(m.time));
-    const tasks = (await this.readTasks()).filter((t) => matchesProject(t, input.project) && inWindow(t.updatedAt));
-    const decisions = (await this.readDecisions()).filter((d) => matchesProject(d, input.project) && inWindow(d.time));
+    const messages = allMessages.filter((m) => matchesProject(m, input.project) && inWindow(m.time) && inThread(m));
+    const tasks = (await this.readTasks()).filter(
+      (t) => matchesProject(t, input.project) && inWindow(t.updatedAt) && inThread(t as { threadId?: string })
+    );
+    const decisions = (await this.readDecisions()).filter(
+      (d) => matchesProject(d, input.project) && inWindow(d.time) && inThread(d as { threadId?: string })
+    );
 
     const agents = [...new Set(messages.map((m) => m.from))].sort();
     const replied = new Set(allMessages.map((m) => m.replyTo).filter(Boolean));
@@ -1301,7 +1479,7 @@ export class AgentRoomStore {
     const digestDir = this.path("digests");
     await mkdir(digestDir, { recursive: true });
     const safeProject = input.project.replace(/[^A-Za-z0-9_.-]/g, "-");
-    const path = join(digestDir, `${safeProject}-${date}.md`);
+    const path = join(digestDir, `${safeProject}-${input.threadId ? `${input.threadId}-` : ""}${date}.md`);
     await writeFile(path, markdown, "utf8");
     return { path, markdown };
   }

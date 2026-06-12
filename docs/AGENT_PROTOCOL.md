@@ -19,6 +19,22 @@ Use:
 In the dashboard, use the **Route to** field. Type `all`, `codex-desktop`, `claude-opus`, or the
 agent id you want.
 
+## Threads
+
+The unit of work is a named conversation, not a message: Project → Threads → messages.
+`create_thread { project, name, goal? }` opens one; `set_active_thread { agent, threadId }`
+points your agent at it. From then on `check_in` and `read_messages` scope to that thread
+by default (unthreaded room-wide messages stay visible; pass `thread: "all"` to see
+everything). Post into the thread with `threadId` on `post_message`.
+
+`close_thread { threadId, outcome }` ends the conversation and writes its digest to
+`<room>/digests/` automatically. New threads in the same project surface the last three
+closed-thread digests in `check_in` — that is the knowledge carryover.
+
+The rhythm: closing a room thread resets *room-side* context, not your own CLI context.
+Close the thread → `/clear` your CLI session → open or join the next thread → `check_in`
+and inherit the digests.
+
 ## Finding Context
 
 Do not pull `read_messages` and filter in your own context — that is a token tax on every lookup.

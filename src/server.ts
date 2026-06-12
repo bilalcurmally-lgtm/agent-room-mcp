@@ -23,6 +23,7 @@ const MessageInput = {
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
   source: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
   replyTo: z.string().optional(),
+  threadId: z.string().min(1).optional(),
   status: z.string().max(MAX_TEXT_LENGTH).optional(),
   next: z.string().max(MAX_TEXT_LENGTH).optional(),
   phase: z.string().max(MAX_TEXT_LENGTH).optional(),
@@ -49,6 +50,7 @@ const LinkAttachmentInput = {
 
 const ReadMessagesInput = {
   agent: z.string().min(1),
+  thread: z.string().min(1).optional(),
   sinceId: z.string().optional(),
   includeBroadcasts: z.boolean().optional(),
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
@@ -108,6 +110,7 @@ const MarkMessagesReadInput = {
 const CheckInInput = {
   agent: z.string().min(1).max(MAX_TEXT_LENGTH),
   project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+  thread: z.string().min(1).optional(),
   includeBroadcasts: z.boolean().optional(),
   limit: z.number().int().positive().optional()
 };
@@ -314,6 +317,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       inputSchema: {
         keyword: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
         project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+        threadId: z.string().min(1).optional(),
         from: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
         to: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
         afterId: z.string().min(1).optional(),
@@ -324,6 +328,58 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       const config = await store.getConfig();
       return jsonResult(await store.searchMessages({ ...input, project: resolveRoomProject(config, input.project) }));
     }
+  );
+
+  server.registerTool(
+    "create_thread",
+    {
+      title: "Create thread",
+      description: "Open a named conversation within a project. Messages, reads, and check-ins can scope to it.",
+      inputSchema: {
+        project: z.string().min(1).max(MAX_TEXT_LENGTH),
+        name: z.string().min(1).max(MAX_TEXT_LENGTH),
+        goal: z.string().max(MAX_TEXT_LENGTH).optional()
+      }
+    },
+    async (input) => jsonResult(await store.createThread(input))
+  );
+
+  server.registerTool(
+    "close_thread",
+    {
+      title: "Close thread",
+      description:
+        "Close a thread with an outcome. Generates the thread's digest into <room>/digests/ so the knowledge carries into the project's next threads.",
+      inputSchema: { threadId: z.string().min(1), outcome: z.string().min(1).max(MAX_TEXT_LENGTH) }
+    },
+    async (input) => jsonResult(await store.closeThread(input))
+  );
+
+  server.registerTool(
+    "set_active_thread",
+    {
+      title: "Set active thread",
+      description:
+        "Point an agent at the thread it is working in. check_in and read_messages then scope to it by default (pass thread: \"all\" to bypass).",
+      inputSchema: { agent: z.string().min(1).max(MAX_TEXT_LENGTH), threadId: z.string().min(1) }
+    },
+    async (input) => {
+      await store.touchAgent(input.agent);
+      return jsonResult(await store.setActiveThread(input));
+    }
+  );
+
+  server.registerTool(
+    "list_threads",
+    {
+      title: "List threads",
+      description: "List threads, optionally filtered by project and status (open | closed).",
+      inputSchema: {
+        project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+        status: z.enum(["open", "closed"]).optional()
+      }
+    },
+    async (input) => jsonResult(await store.listThreads(input))
   );
 
   server.registerTool(

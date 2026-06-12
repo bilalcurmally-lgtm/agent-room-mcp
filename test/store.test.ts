@@ -217,6 +217,69 @@ describe("AgentRoomStore", () => {
     });
   });
 
+  it("round-trips the thread lifecycle: create, list, close with digest", async () => {
+    const store = await makeStore();
+    const thread = await store.createThread({ project: "alpha", name: "Fix routing", goal: "Trustworthy mentions" });
+
+    expect(thread).toMatchObject({ id: "thread-000001", project: "alpha", name: "Fix routing", status: "open" });
+    expect(await store.listThreads({ project: "alpha", status: "open" })).toMatchObject([{ id: thread.id }]);
+
+    await store.postMessage(message({ topic: "Thread work", project: "alpha", threadId: thread.id }));
+    const closed = await store.closeThread({ threadId: thread.id, outcome: "Mentions fixed, tests green." });
+
+    expect(closed.status).toBe("closed");
+    expect(closed.outcome).toBe("Mentions fixed, tests green.");
+    expect(closed.digestPath).toBeTruthy();
+    expect(await readFile(closed.digestPath!, "utf8")).toContain("Thread work");
+    expect(await store.listThreads({ project: "alpha", status: "open" })).toEqual([]);
+    await expect(store.closeThread({ threadId: thread.id, outcome: "again" })).rejects.toThrow(/closed/);
+    await expect(store.closeThread({ threadId: "thread-999999", outcome: "x" })).rejects.toThrow(/thread-999999/);
+  });
+
+  it("scopes check-ins and reads to the agent's active thread", async () => {
+    const store = await makeStore();
+    const threadA = await store.createThread({ project: "alpha", name: "A" });
+    const threadB = await store.createThread({ project: "alpha", name: "B" });
+    await store.registerAgent({ agent: "opus" });
+    await store.setActiveThread({ agent: "opus", threadId: threadA.id });
+
+    await store.postMessage(message({ to: "opus", topic: "In A", threadId: threadA.id }));
+    await store.postMessage(message({ to: "opus", topic: "In B", threadId: threadB.id }));
+    await store.postMessage(message({ to: "opus", topic: "Unthreaded" }));
+
+    const scoped = await store.readMessages({ agent: "opus" });
+    expect(scoped.map((m) => m.topic)).toEqual(["In A", "Unthreaded"]);
+    const all = await store.readMessages({ agent: "opus", thread: "all" });
+    expect(all.map((m) => m.topic)).toEqual(["In A", "In B", "Unthreaded"]);
+
+    const checkIn = await store.checkInCompact({ agent: "opus" });
+    expect(checkIn.unread.messages.map((m) => m.topic)).toEqual(["In A", "Unthreaded"]);
+    expect(checkIn.activeThread).toMatchObject({ id: threadA.id, name: "A" });
+
+    await expect(store.setActiveThread({ agent: "opus", threadId: "thread-999999" })).rejects.toThrow(
+      /thread-999999/
+    );
+    await expect(
+      store.postMessage(message({ topic: "Bad thread", threadId: "thread-999999" }))
+    ).rejects.toThrow(/thread-999999/);
+  });
+
+  it("carries the last closed-thread digests into new-thread check-ins", async () => {
+    const store = await makeStore();
+    const finished = await store.createThread({ project: "alpha", name: "Done work" });
+    await store.postMessage(message({ topic: "History", project: "alpha", threadId: finished.id }));
+    await store.closeThread({ threadId: finished.id, outcome: "Shipped." });
+
+    const fresh = await store.createThread({ project: "alpha", name: "Next up" });
+    await store.registerAgent({ agent: "opus" });
+    await store.setActiveThread({ agent: "opus", threadId: fresh.id });
+
+    const checkIn = await store.checkInCompact({ agent: "opus" });
+    expect(checkIn.recentThreadDigests).toMatchObject([
+      { threadId: finished.id, name: "Done work", outcome: "Shipped." }
+    ]);
+  });
+
   it("generates a deterministic digest under the token budget", async () => {
     const store = await makeStore();
     for (let i = 0; i < 100; i += 1) {
