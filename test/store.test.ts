@@ -264,6 +264,33 @@ describe("AgentRoomStore", () => {
     ).rejects.toThrow(/thread-999999/);
   });
 
+  it("flags file conflicts between open threads and clears them on close", async () => {
+    const store = await makeStore();
+    const mine = await store.createThread({ project: "alpha", name: "Refactor server", files: ["src/server.ts"] });
+    const theirs = await store.createThread({ project: "alpha", name: "Lite profile" });
+    await store.registerAgent({ agent: "opus" });
+    await store.registerAgent({ agent: "codex" });
+    await store.setActiveThread({ agent: "opus", threadId: mine.id });
+    await store.setActiveThread({ agent: "codex", threadId: theirs.id });
+
+    // The other thread declares the same file via a message posted into it.
+    await store.postMessage(
+      message({ from: "codex", topic: "Touching server", threadId: theirs.id, files: ["src/server.ts", "src/store.ts"] })
+    );
+
+    const opusCheckIn = await store.checkInCompact({ agent: "opus" });
+    expect(opusCheckIn.fileConflicts).toMatchObject([
+      { path: "src/server.ts", otherThreadId: theirs.id, otherThreadName: "Lite profile", agents: ["codex"] }
+    ]);
+    const codexCheckIn = await store.checkInCompact({ agent: "codex" });
+    expect(codexCheckIn.fileConflicts).toMatchObject([
+      { path: "src/server.ts", otherThreadId: mine.id, agents: ["opus"] }
+    ]);
+
+    await store.closeThread({ threadId: theirs.id, outcome: "Done." });
+    expect((await store.checkInCompact({ agent: "opus" })).fileConflicts).toBeUndefined();
+  });
+
   it("carries the last closed-thread digests into new-thread check-ins", async () => {
     const store = await makeStore();
     const finished = await store.createThread({ project: "alpha", name: "Done work" });

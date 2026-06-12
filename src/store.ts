@@ -53,6 +53,8 @@ export interface PostMessageInput {
   type?: string;
   /** Conversation this message belongs to (P3-02); must reference an open thread. */
   threadId?: string;
+  /** Paths this work touches (P3-06); overlaps between open threads get flagged. */
+  files?: string[];
   status?: string;
   next?: string;
   phase?: string;
@@ -167,6 +169,7 @@ export interface RoomThread {
   project: string;
   name: string;
   goal?: string;
+  files?: string[];
   status: "open" | "closed";
   outcome?: string;
   digestPath?: string;
@@ -271,6 +274,8 @@ export interface CompactAgentCheckIn {
   activeThread?: Pick<RoomThread, "id" | "name" | "goal" | "project">;
   /** Knowledge carryover: the last closed-thread digests in the same project. */
   recentThreadDigests?: Array<Pick<RoomThread, "name" | "outcome" | "digestPath"> & { threadId: string }>;
+  /** Open threads touching the same files as this agent's active thread (P3-06). */
+  fileConflicts?: Array<{ path: string; otherThreadId: string; otherThreadName: string; agents: AgentId[] }>;
   status: Pick<RoomStatus, "roomDir" | "messages" | "tasks" | "decisions" | "agents">;
   contextBudget: {
     mode: "compact";
@@ -470,6 +475,7 @@ export class AgentRoomStore {
     validateText("status", input.status);
     validateText("next", input.next);
     validateText("phase", input.phase);
+    input.files?.forEach((file, index) => validateText(`files[${index}]`, file));
 
     const body = enrichMessageBody(input.body, {
       status: input.status,
@@ -499,6 +505,7 @@ export class AgentRoomStore {
         replyTo: input.replyTo,
         ...(input.type ? { type: input.type } : {}),
         ...(input.threadId ? { threadId: input.threadId } : {}),
+        ...(input.files?.length ? { files: input.files } : {}),
         status: compliance.status,
         next: compliance.next,
         phase: compliance.phase,
@@ -604,8 +611,9 @@ export class AgentRoomStore {
   // Thread context for compact check-ins: the active thread plus the last 3
   // closed-thread digests in the same project (Claude-Projects-style carryover).
   private async compactThreadContext(
-    agent: RoomAgent
-  ): Promise<Pick<CompactAgentCheckIn, "activeThread" | "recentThreadDigests">> {
+    agent: RoomAgent,
+    agents: RoomAgent[]
+  ): Promise<Pick<CompactAgentCheckIn, "activeThread" | "recentThreadDigests" | "fileConflicts">> {
     if (!agent.activeThreadId) return {};
     const threads = await this.readThreads();
     const active = threads.find((thread) => thread.id === agent.activeThreadId);
@@ -619,9 +627,45 @@ export class AgentRoomStore {
         outcome: thread.outcome,
         digestPath: thread.digestPath
       }));
+
+    // P3-06: a thread's declared file set is its own files plus files declared
+    // on messages posted into it. Overlap between open threads is the cheap
+    // early warning before two agents collide in a diff fight.
+    let fileConflicts: CompactAgentCheckIn["fileConflicts"];
+    if (active.status === "open") {
+      const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
+      const filesOf = (thread: RoomThread): Set<string> => {
+        const set = new Set(thread.files ?? []);
+        for (const message of messages) {
+          if (message.threadId === thread.id) for (const file of message.files ?? []) set.add(file);
+        }
+        return set;
+      };
+      const myFiles = filesOf(active);
+      if (myFiles.size) {
+        const conflicts: NonNullable<CompactAgentCheckIn["fileConflicts"]> = [];
+        for (const other of threads) {
+          if (other.id === active.id || other.status !== "open") continue;
+          const otherFiles = filesOf(other);
+          for (const path of myFiles) {
+            if (otherFiles.has(path)) {
+              conflicts.push({
+                path,
+                otherThreadId: other.id,
+                otherThreadName: other.name,
+                agents: agents.filter((candidate) => candidate.activeThreadId === other.id).map((candidate) => candidate.id)
+              });
+            }
+          }
+        }
+        if (conflicts.length) fileConflicts = conflicts;
+      }
+    }
+
     return {
       activeThread: { id: active.id, name: active.name, goal: active.goal, project: active.project },
-      ...(recent.length ? { recentThreadDigests: recent } : {})
+      ...(recent.length ? { recentThreadDigests: recent } : {}),
+      ...(fileConflicts ? { fileConflicts } : {})
     };
   }
 
@@ -645,10 +689,16 @@ export class AgentRoomStore {
     return thread;
   }
 
-  async createThread(input: { project: string; name: string; goal?: string }): Promise<RoomThread> {
+  async createThread(input: {
+    project: string;
+    name: string;
+    goal?: string;
+    files?: string[];
+  }): Promise<RoomThread> {
     validateText("project", input.project);
     validateText("name", input.name);
     validateText("goal", input.goal);
+    input.files?.forEach((file, index) => validateText(`files[${index}]`, file));
 
     return this.withExclusiveWrite(async () => {
       const threads = await this.readThreads();
@@ -663,6 +713,7 @@ export class AgentRoomStore {
         project: input.project,
         name: input.name,
         ...(input.goal ? { goal: input.goal } : {}),
+        ...(input.files?.length ? { files: input.files } : {}),
         status: "open",
         createdAt: time,
         updatedAt: time
@@ -1007,7 +1058,7 @@ export class AgentRoomStore {
         .filter((decision) => matchesProject(decision, input.project))
         .slice(-decisionLimit)
         .map(compactDecision),
-      ...(await this.compactThreadContext(agent)),
+      ...(await this.compactThreadContext(agent, agents)),
       status: {
         roomDir: status.roomDir,
         messages: status.messages,

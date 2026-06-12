@@ -24,6 +24,7 @@ const MessageInput = {
   source: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
   replyTo: z.string().optional(),
   threadId: z.string().min(1).optional(),
+  files: z.array(z.string().min(1).max(MAX_TEXT_LENGTH)).optional(),
   status: z.string().max(MAX_TEXT_LENGTH).optional(),
   next: z.string().max(MAX_TEXT_LENGTH).optional(),
   phase: z.string().max(MAX_TEXT_LENGTH).optional(),
@@ -338,7 +339,8 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       inputSchema: {
         project: z.string().min(1).max(MAX_TEXT_LENGTH),
         name: z.string().min(1).max(MAX_TEXT_LENGTH),
-        goal: z.string().max(MAX_TEXT_LENGTH).optional()
+        goal: z.string().max(MAX_TEXT_LENGTH).optional(),
+        files: z.array(z.string().min(1).max(MAX_TEXT_LENGTH)).optional()
       }
     },
     async (input) => jsonResult(await store.createThread(input))
