@@ -447,6 +447,8 @@ describe("dashboard server", () => {
     expect(html).toContain("POSTER_STORAGE_KEY");
     expect(html).toContain("posterSeeded");
     expect(html).toContain("seedPosterOnce");
+    expect(html).toContain('id="message-from"');
+    expect(html).toContain("renderPostAsSelect");
     expect(html).toContain('id="feed" class="feed"');
   });
 

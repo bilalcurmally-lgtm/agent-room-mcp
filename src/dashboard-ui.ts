@@ -653,7 +653,7 @@ export const dashboardHtml = `<!doctype html>
       color: var(--muted);
       white-space: nowrap;
     }
-    .composer-identity input {
+    .composer-identity input, .composer-identity select {
       width: auto;
       min-height: 28px;
       max-width: 160px;
@@ -897,7 +897,7 @@ export const dashboardHtml = `<!doctype html>
             </div>
             <div class="composer-foot">
               <p class="composer-hint" id="composer-route-hint">Enter to send · Shift+Enter for a new line · @mentions route alerts</p>
-              <label class="composer-identity">Posting as <input id="composer-user" placeholder="Your name" title="Your display name on this browser only — saved locally, not shared with agents" /></label>
+              <label class="composer-identity">Posting as <select id="message-from" title="Room identity used as the message sender"></select><input id="composer-user" placeholder="Your name" title="Your display name on this browser only — saved locally, not shared with agents" /></label>
             </div>
             <div class="composer-actions">
               <button type="button" class="composer-toggle" id="composer-toggle" aria-expanded="false" aria-controls="composer-advanced">More options</button>
@@ -1075,6 +1075,7 @@ export const dashboardHtml = `<!doctype html>
     const searchInput = document.getElementById("search");
     const currentUserInput = document.getElementById("current-user");
     const composerUserInput = document.getElementById("composer-user");
+    const messageFrom = document.getElementById("message-from");
     const filterAgentInput = document.getElementById("filter-agent");
     const filterSinceInput = document.getElementById("filter-since");
     const filterUntilInput = document.getElementById("filter-until");
@@ -1415,6 +1416,27 @@ export const dashboardHtml = `<!doctype html>
 
     function currentUserIdentity() {
       return readStoredPoster() || composerUserInput.value.trim() || currentUserInput.value.trim() || "user";
+    }
+
+    function selectedPostAsIdentity() {
+      return messageFrom.value.trim() || currentUserIdentity();
+    }
+
+    function renderPostAsSelect(snapshot) {
+      const current = currentUserIdentity();
+      const previous = messageFrom.value || current;
+      const identities = [current, ...(snapshot.agents || []).map((agent) => agent.id)]
+        .map((id) => String(id || "").trim())
+        .filter(Boolean);
+      const unique = [...new Set(identities)];
+      messageFrom.replaceChildren(...unique.map((id) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = id;
+        option.selected = id === previous;
+        return option;
+      }));
+      if (!unique.includes(previous) && unique.length) messageFrom.value = unique[0];
     }
 
     function applyFilterPreset(preset) {
@@ -2485,6 +2507,7 @@ export const dashboardHtml = `<!doctype html>
       renderSelect(snapshot);
       renderWorkspaceBanner(snapshot);
       renderThreadList(snapshot);
+      renderPostAsSelect(snapshot);
       updateMessageSubmitLabel();
       renderProgress(snapshot.progress);
       renderStatus(snapshot.status, snapshot.agents);
@@ -2771,7 +2794,7 @@ export const dashboardHtml = `<!doctype html>
       const body = messageInput.value.trim();
       const to = messageTo.value.trim() || "all";
       if (!body) return;
-      const from = currentUserIdentity();
+      const from = selectedPostAsIdentity();
       const status = messageStatus.value.trim();
       const phase = messagePhase.value.trim();
       const next = messageNext.value.trim();
