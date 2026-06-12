@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { assertProtocolCompliant } from "../src/protocol.js";
-import { createServer, isDirectRun, jsonResult, paginate, resolveRoomDir } from "../src/server.js";
+import { createServer, isDirectRun, jsonResult, paginate, resolveRoomDir, resolveServerProfile } from "../src/server.js";
 import { AgentRoomStore } from "../src/store.js";
 
 describe("resolveRoomDir", () => {
@@ -23,6 +23,18 @@ describe("resolveRoomDir", () => {
 
   it("rejects --room without a path", () => {
     expect(() => resolveRoomDir(["--room"], {})).toThrow("--room requires a directory path");
+  });
+});
+
+describe("resolveServerProfile", () => {
+  it("defaults to full and accepts --profile lite", () => {
+    expect(resolveServerProfile([], {})).toBe("full");
+    expect(resolveServerProfile(["--profile", "lite"], {})).toBe("lite");
+    expect(resolveServerProfile([], { AGENT_ROOM_PROFILE: "lite" })).toBe("lite");
+  });
+
+  it("rejects unknown profiles", () => {
+    expect(() => resolveServerProfile(["--profile", "tiny"], {})).toThrow("--profile must be full or lite");
   });
 });
 
@@ -145,5 +157,20 @@ describe("createServer", () => {
         "list_attachments"
       ])
     );
+  });
+
+  it("registers only the lite profile tools when requested", async () => {
+    const server = await createServer(await mkdtemp(join(tmpdir(), "agent-room-server-")), { profile: "lite" });
+
+    expect(Object.keys(server._registeredTools).sort()).toEqual([
+      "check_in",
+      "claim_task",
+      "mark_messages_read",
+      "post_message",
+      "read_message",
+      "read_messages",
+      "search_messages",
+      "update_task"
+    ]);
   });
 });

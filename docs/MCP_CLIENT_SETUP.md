@@ -60,6 +60,24 @@ npm run verify-clients -- --room D:\projects\.agent-room
 
 `npm test` also runs the same checks in `test/mcp-client-verification.test.ts`.
 
+## Tool Profiles
+
+The MCP server defaults to the full tool profile:
+
+```powershell
+node dist/server.js --room D:\projects\.agent-room
+```
+
+Use the lite profile when a client should pay for only the high-frequency coordination tools:
+
+```powershell
+node dist/server.js --room D:\projects\.agent-room --profile lite
+```
+
+Lite registers only `post_message`, `read_messages`, `read_message`, `search_messages`,
+`check_in`, `mark_messages_read`, `claim_task`, and `update_task`. Full remains the default
+and includes setup, attachment, project, thread, digest, decision, and status tools.
+
 ## Verification Ritual
 
 After setup, each agent should do this before real work:

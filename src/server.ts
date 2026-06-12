@@ -9,6 +9,22 @@ import { resolveMessageRoute } from "./routing.js";
 import { AgentRoomStore, MAX_TEXT_LENGTH, resolveRoomProject } from "./store.js";
 
 const VERSION = "0.1.0";
+export type ServerProfile = "full" | "lite";
+
+export interface CreateServerOptions {
+  profile?: ServerProfile;
+}
+
+const LITE_PROFILE_TOOLS = new Set([
+  "post_message",
+  "read_messages",
+  "read_message",
+  "search_messages",
+  "check_in",
+  "mark_messages_read",
+  "claim_task",
+  "update_task"
+]);
 
 const AttachmentLinkInput = z.object({
   name: z.string().min(1).max(MAX_TEXT_LENGTH),
@@ -170,14 +186,19 @@ const RecordDecisionInput = {
   linkAttachments: z.array(AttachmentLinkInput).optional()
 };
 
-export async function createServer(roomDir: string): Promise<McpServer> {
+export async function createServer(roomDir: string, options: CreateServerOptions = {}): Promise<McpServer> {
   const store = await AgentRoomStore.open(roomDir);
   const server = new McpServer({
     name: "agent-room-mcp",
     version: VERSION
   });
+  const profile = options.profile ?? "full";
+  const registerTool: typeof server.registerTool = ((name: string, ...args: unknown[]) => {
+    if (profile === "lite" && !LITE_PROFILE_TOOLS.has(name)) return undefined;
+    return (server.registerTool as (toolName: string, ...toolArgs: unknown[]) => unknown)(name, ...args);
+  }) as typeof server.registerTool;
 
-  server.registerTool(
+  registerTool(
     "post_message",
     {
       title: "Post message",
@@ -208,7 +229,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "upload_attachment",
     {
       title: "Upload attachment",
@@ -219,7 +240,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.uploadAttachment(input))
   );
 
-  server.registerTool(
+  registerTool(
     "link_attachment",
     {
       title: "Link attachment",
@@ -229,7 +250,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.linkAttachment(input))
   );
 
-  server.registerTool(
+  registerTool(
     "list_attachments",
     {
       title: "List attachments",
@@ -238,7 +259,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async () => jsonResult(await store.listAttachments())
   );
 
-  server.registerTool(
+  registerTool(
     "read_messages",
     {
       title: "Read messages",
@@ -257,7 +278,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "create_task",
     {
       title: "Create task",
@@ -270,7 +291,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "claim_task",
     {
       title: "Claim task",
@@ -283,7 +304,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "register_agent",
     {
       title: "Register agent",
@@ -293,7 +314,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.registerAgent(input))
   );
 
-  server.registerTool(
+  registerTool(
     "check_in",
     {
       title: "Check in",
@@ -309,7 +330,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "search_messages",
     {
       title: "Search messages",
@@ -331,7 +352,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "create_thread",
     {
       title: "Create thread",
@@ -346,7 +367,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.createThread(input))
   );
 
-  server.registerTool(
+  registerTool(
     "close_thread",
     {
       title: "Close thread",
@@ -357,7 +378,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.closeThread(input))
   );
 
-  server.registerTool(
+  registerTool(
     "set_active_thread",
     {
       title: "Set active thread",
@@ -371,7 +392,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "list_threads",
     {
       title: "List threads",
@@ -384,7 +405,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.listThreads(input))
   );
 
-  server.registerTool(
+  registerTool(
     "generate_digest",
     {
       title: "Generate digest",
@@ -405,7 +426,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "read_message",
     {
       title: "Read one message",
@@ -415,7 +436,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.readMessage(input.id))
   );
 
-  server.registerTool(
+  registerTool(
     "check_in_compact",
     {
       title: "Compact check in",
@@ -429,7 +450,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "mark_messages_read",
     {
       title: "Mark messages read",
@@ -447,7 +468,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "set_active_project",
     {
       title: "Set active project",
@@ -463,7 +484,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       )
   );
 
-  server.registerTool(
+  registerTool(
     "get_room_config",
     {
       title: "Get room config",
@@ -472,7 +493,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async () => jsonResult(await store.getConfig())
   );
 
-  server.registerTool(
+  registerTool(
     "register_project",
     {
       title: "Register project",
@@ -482,7 +503,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.upsertProject(input))
   );
 
-  server.registerTool(
+  registerTool(
     "delete_project",
     {
       title: "Delete project",
@@ -492,7 +513,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.deleteProject(input))
   );
 
-  server.registerTool(
+  registerTool(
     "list_projects",
     {
       title: "List projects",
@@ -505,7 +526,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
       })
   );
 
-  server.registerTool(
+  registerTool(
     "list_tasks",
     {
       title: "List tasks",
@@ -520,7 +541,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "update_task",
     {
       title: "Update task",
@@ -531,7 +552,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.updateTask(input))
   );
 
-  server.registerTool(
+  registerTool(
     "confirm_handoff",
     {
       title: "Confirm handoff",
@@ -545,7 +566,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "set_status",
     {
       title: "Set agent status",
@@ -560,7 +581,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.setStatus(input))
   );
 
-  server.registerTool(
+  registerTool(
     "append_task_note",
     {
       title: "Append task note",
@@ -571,7 +592,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     async (input) => jsonResult(await store.appendTaskNote(input))
   );
 
-  server.registerTool(
+  registerTool(
     "record_decision",
     {
       title: "Record decision",
@@ -584,7 +605,7 @@ export async function createServer(roomDir: string): Promise<McpServer> {
     }
   );
 
-  server.registerTool(
+  registerTool(
     "get_room_status",
     {
       title: "Get room status",
@@ -607,9 +628,17 @@ export function resolveRoomDir(args: readonly string[], env: NodeJS.ProcessEnv):
   return env.AGENT_ROOM_DIR ?? ".agent-room";
 }
 
+export function resolveServerProfile(args: readonly string[], env: NodeJS.ProcessEnv): ServerProfile {
+  const explicitProfileIndex = args.indexOf("--profile");
+  const profile = explicitProfileIndex >= 0 ? args[explicitProfileIndex + 1] : env.AGENT_ROOM_PROFILE ?? "full";
+  if (profile === "full" || profile === "lite") return profile;
+  throw new Error("--profile must be full or lite");
+}
+
 async function main(): Promise<void> {
-  const roomDir = resolveRoomDir(process.argv.slice(2), process.env);
-  const server = await createServer(roomDir);
+  const args = process.argv.slice(2);
+  const roomDir = resolveRoomDir(args, process.env);
+  const server = await createServer(roomDir, { profile: resolveServerProfile(args, process.env) });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
