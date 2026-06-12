@@ -1037,6 +1037,38 @@ describe("AgentRoomStore", () => {
     expect(next.id).toBe("000004");
   });
 
+  it("archives old messages without resetting message ids", async () => {
+    const store = await makeStore();
+    const old = await store.postMessage(message({ topic: "Old", body: "Archive me" }));
+    const fresh = await store.postMessage(message({ topic: "Fresh", body: "Keep me" }));
+    const records = (await store.listMessages()).map((entry) =>
+      entry.id === old.id
+        ? { ...entry, time: "2026-04-01T12:00:00.000Z" }
+        : { ...entry, time: "2026-06-11T12:00:00.000Z" }
+    );
+    await writeFile(join(store.roomDir, "messages.jsonl"), records.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
+
+    const result = await store.archiveMessages({
+      olderThanDays: 30,
+      now: new Date("2026-06-12T12:00:00.000Z")
+    });
+    const next = await store.postMessage(message({ topic: "After archive", body: "Counter should continue" }));
+
+    expect(result).toMatchObject({
+      archived: 1,
+      retained: 1,
+      archiveFiles: [join(store.roomDir, "archive", "messages-2026-04-01.jsonl")]
+    });
+    await expect(readFile(join(store.roomDir, "archive", "messages-2026-04-01.jsonl"), "utf8")).resolves.toContain(
+      '"topic":"Old"'
+    );
+    expect(await store.listMessages()).toMatchObject([
+      { id: fresh.id, topic: "Fresh" },
+      { id: "000003", topic: "After archive" }
+    ]);
+    expect(next.id).toBe("000003");
+  });
+
   it("recovers the id counter from the message log when the counter file is invalid", async () => {
     const store = await makeStore();
     await store.postMessage(message({ topic: "one" }));

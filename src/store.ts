@@ -68,6 +68,12 @@ export interface RoomMessage extends Omit<PostMessageInput, "attachmentIds" | "l
   attachments?: AttachmentRef[];
 }
 
+export interface ArchiveMessagesResult {
+  archived: number;
+  retained: number;
+  archiveFiles: string[];
+}
+
 export interface ReadMessagesInput {
   agent: AgentId;
   /** Thread scope: a thread id, or "all" to bypass the agent's active thread. */
@@ -777,6 +783,52 @@ export class AgentRoomStore {
 
   async listMessages(): Promise<RoomMessage[]> {
     return this.readJsonl<RoomMessage>("messages.jsonl");
+  }
+
+  async archiveMessages(input: { olderThanDays: number; now?: Date }): Promise<ArchiveMessagesResult> {
+    validatePositiveInteger("olderThanDays", input.olderThanDays);
+    const nowMs = (input.now ?? new Date()).getTime();
+    if (!Number.isFinite(nowMs)) throw new Error("now must be a valid Date");
+    const cutoffMs = nowMs - input.olderThanDays * 24 * 60 * 60 * 1000;
+
+    return this.withExclusiveWrite(async () => {
+      const messages = await this.readJsonl<RoomMessage>("messages.jsonl");
+      const archived: RoomMessage[] = [];
+      const retained: RoomMessage[] = [];
+      for (const message of messages) {
+        const timeMs = Date.parse(message.time);
+        if (Number.isFinite(timeMs) && timeMs < cutoffMs) archived.push(message);
+        else retained.push(message);
+      }
+
+      const archiveFiles = new Set<string>();
+      if (archived.length) {
+        const archiveDir = this.path("archive");
+        await mkdir(archiveDir, { recursive: true });
+        const byDate = new Map<string, RoomMessage[]>();
+        for (const message of archived) {
+          const date = archiveDate(message.time);
+          byDate.set(date, [...(byDate.get(date) ?? []), message]);
+        }
+        for (const [date, entries] of byDate) {
+          const archivePath = join(archiveDir, `messages-${date}.jsonl`);
+          await appendFile(archivePath, entries.map((message) => JSON.stringify(message)).join("\n") + "\n", "utf8");
+          archiveFiles.add(archivePath);
+        }
+      }
+
+      await writeFile(
+        this.path("messages.jsonl"),
+        retained.length ? retained.map((message) => JSON.stringify(message)).join("\n") + "\n" : "",
+        "utf8"
+      );
+
+      return {
+        archived: archived.length,
+        retained: retained.length,
+        archiveFiles: [...archiveFiles].sort()
+      };
+    });
   }
 
   async registerAgent(input: RegisterAgentInput): Promise<RoomAgent> {
@@ -1866,6 +1918,12 @@ function validatePositiveInteger(field: string, value: number): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error(`${field} must be a positive integer`);
   }
+}
+
+function archiveDate(isoTime: string): string {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) return "unknown-date";
+  return date.toISOString().slice(0, 10);
 }
 
 function filterVisibleMessages(

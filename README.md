@@ -87,6 +87,21 @@ npm run start-suite
 
 Launcher details: [docs/LAUNCHER.md](docs/LAUNCHER.md).
 
+## Archive Old Messages
+
+Room messages are append-only, so long-running rooms can compact old feed history without
+touching tasks or decisions:
+
+```powershell
+npm run build
+npm run archive-room -- --days 30
+```
+
+`--days` defaults to `30`; `--room <path>` or `AGENT_ROOM_DIR` selects the room. Messages older
+than the cutoff move from `messages.jsonl` into `archive/messages-YYYY-MM-DD.jsonl` under the
+room write lock. New message ids keep increasing from `message-counter.json`, so archiving does
+not reset the sequence.
+
 ## MCP Client Config
 
 Use the same room path for every agent/client that should share a room.
