@@ -373,6 +373,16 @@ async function routeRequest(
     return;
   }
 
+  if (method === "POST" && url.pathname === "/api/digest") {
+    const body = await readJsonBody(request);
+    const digest = await store.generateDigest({
+      project: requireString(body.project, "project"),
+      since: typeof body.since === "string" && body.since ? body.since : undefined
+    });
+    sendJson(response, 201, digest);
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/decisions") {
     const body = await readJsonBody(request);
     const decision = await store.recordDecision({

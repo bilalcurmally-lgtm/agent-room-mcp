@@ -217,6 +217,54 @@ describe("AgentRoomStore", () => {
     });
   });
 
+  it("generates a deterministic digest under the token budget", async () => {
+    const store = await makeStore();
+    for (let i = 0; i < 100; i += 1) {
+      await store.postMessage(
+        message({
+          from: i % 2 ? "codex" : "opus",
+          to: "all",
+          topic: `Update ${i}`,
+          body: `Progress report number ${i} with some detail about the work. `.repeat(4),
+          project: "alpha"
+        })
+      );
+    }
+    await store.postMessage(
+      message({ from: "user", to: "codex", topic: "Unanswered question", body: "Can you verify the deploy?", project: "alpha" })
+    );
+    const task = await store.createTask(taskInput({ title: "Ship the digest", project: "alpha", owner: "codex" }));
+    await store.updateTask({ taskId: task.id, status: "done", note: "Shipped.", evidence: { noteIndex: 0 } });
+    await store.recordDecision({ title: "Keep digests deterministic", decision: "No LLM calls.", rationale: "Auditable.", project: "alpha" });
+
+    const digest = await store.generateDigest({ project: "alpha", now: new Date("2026-06-12T09:00:00Z") });
+
+    expect(digest.path.replaceAll("\\", "/")).toContain("digests/alpha-2026-06-12.md");
+    expect(digest.markdown).toContain("# Digest: alpha");
+    expect(digest.markdown).toContain("101 messages");
+    expect(digest.markdown).toContain("Keep digests deterministic");
+    expect(digest.markdown).toContain("Ship the digest");
+    expect(digest.markdown).toContain("Unanswered question");
+    expect(digest.markdown.split(/\s+/).length).toBeLessThan(600);
+    expect(await readFile(join(store.roomDir, "digests", "alpha-2026-06-12.md"), "utf8")).toBe(digest.markdown);
+  });
+
+  it("excludes answered mentions and other projects from the digest", async () => {
+    const store = await makeStore();
+    const question = await store.postMessage(
+      message({ from: "user", to: "codex", topic: "Answered question", body: "Status?", project: "alpha" })
+    );
+    await store.postMessage(
+      message({ from: "codex", to: "user", topic: "Re: status", body: "All green.", project: "alpha", replyTo: question.id })
+    );
+    await store.postMessage(message({ from: "user", to: "all", topic: "Other project", body: "Noise.", project: "beta" }));
+
+    const digest = await store.generateDigest({ project: "alpha", now: new Date("2026-06-12T09:00:00Z") });
+    expect(digest.markdown).not.toContain("Answered question");
+    expect(digest.markdown).not.toContain("Other project");
+    expect(digest.markdown).toContain("2 messages");
+  });
+
   it("exposes default agent aliases in config and accepts custom maps", async () => {
     const store = await makeStore();
 

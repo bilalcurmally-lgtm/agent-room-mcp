@@ -952,6 +952,8 @@ export const dashboardHtml = `<!doctype html>
               <textarea id="decision-rationale" rows="2" placeholder="Rationale"></textarea>
               <button type="submit">Record decision</button>
             </form>
+            <button type="button" id="generate-digest" title="Write a deterministic markdown rollup of this project to the room's digests folder">Generate digest</button>
+            <div id="digest-result" class="muted"></div>
           </div>
         </details>
       </div>
@@ -2634,6 +2636,26 @@ export const dashboardHtml = `<!doctype html>
       decisionBody.value = "";
       decisionRationale.value = "";
       await loadSnapshot();
+    });
+
+    document.getElementById("generate-digest").addEventListener("click", async () => {
+      const result = document.getElementById("digest-result");
+      const project = projectForWrite() || (selectedProject !== "all" ? selectedProject : "");
+      if (!project) {
+        result.textContent = "Pick a project first — digests are per-project.";
+        return;
+      }
+      const response = await fetch("/api/digest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ project })
+      });
+      if (!response.ok) {
+        result.textContent = "Digest failed: " + (await response.json()).error;
+        return;
+      }
+      const digest = await response.json();
+      result.textContent = "Digest written to " + digest.path;
     });
 
     loadSnapshot();

@@ -327,6 +327,27 @@ export async function createServer(roomDir: string): Promise<McpServer> {
   );
 
   server.registerTool(
+    "generate_digest",
+    {
+      title: "Generate digest",
+      description:
+        "Roll a project's messages, task states, decisions, and unanswered direct mentions into a deterministic markdown digest written to <room>/digests/. No LLM involved — counts and titles only.",
+      inputSchema: {
+        project: z.string().min(1).max(MAX_TEXT_LENGTH).optional(),
+        since: z.string().min(1).max(MAX_TEXT_LENGTH).optional()
+      }
+    },
+    async (input) => {
+      const config = await store.getConfig();
+      const project = resolveRoomProject(config, input.project);
+      if (!project) {
+        throw new Error("generate_digest needs a project: pass one or set an active project in room config.");
+      }
+      return jsonResult(await store.generateDigest({ project, since: input.since }));
+    }
+  );
+
+  server.registerTool(
     "read_message",
     {
       title: "Read one message",

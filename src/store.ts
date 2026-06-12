@@ -1245,6 +1245,67 @@ export class AgentRoomStore {
     });
   }
 
+  // P3-03: "what happened while I was away" as a deterministic markdown rollup —
+  // counts, decision titles, task states, unanswered direct mentions. No LLM call,
+  // so the digest is auditable and snapshot-testable.
+  async generateDigest(input: { project: string; since?: string; now?: Date }): Promise<{ path: string; markdown: string }> {
+    validateText("project", input.project);
+    validateText("since", input.since);
+    const sinceMs = input.since ? Date.parse(input.since) : undefined;
+    const inWindow = (time?: string) =>
+      sinceMs === undefined || (time !== undefined && Date.parse(time) >= sinceMs);
+
+    const allMessages = await this.readJsonl<RoomMessage>("messages.jsonl");
+    const messages = allMessages.filter((m) => matchesProject(m, input.project) && inWindow(m.time));
+    const tasks = (await this.readTasks()).filter((t) => matchesProject(t, input.project) && inWindow(t.updatedAt));
+    const decisions = (await this.readDecisions()).filter((d) => matchesProject(d, input.project) && inWindow(d.time));
+
+    const agents = [...new Set(messages.map((m) => m.from))].sort();
+    const replied = new Set(allMessages.map((m) => m.replyTo).filter(Boolean));
+    const openQuestions = messages
+      .filter((m) => m.to !== "all" && m.type !== "ack" && !replied.has(m.id))
+      .slice(-5);
+    const activeDecisions = excludeSuperseded(decisions);
+    const taskCounts: Record<TaskStatus, number> = { open: 0, claimed: 0, blocked: 0, done: 0 };
+    for (const task of tasks) taskCounts[task.status] += 1;
+
+    const date = (input.now ?? new Date()).toISOString().slice(0, 10);
+    const plural = (count: number) => (count === 1 ? "" : "s");
+    const lines = [
+      `# Digest: ${input.project} — ${date}`,
+      "",
+      "## Activity",
+      `${messages.length} message${plural(messages.length)} from ${agents.length} agent${plural(agents.length)}` +
+        `${agents.length ? ` (${agents.join(", ")})` : ""}${input.since ? ` since ${input.since}` : ""}.`,
+      "",
+      "## Decisions",
+      ...(activeDecisions.length
+        ? activeDecisions.slice(-10).map((d) => `- ${d.id} — ${d.title}`)
+        : ["- none recorded"]),
+      ...(decisions.length > activeDecisions.length
+        ? [`- (${decisions.length - activeDecisions.length} superseded entr${decisions.length - activeDecisions.length === 1 ? "y" : "ies"} omitted)`]
+        : []),
+      "",
+      "## Tasks",
+      `${taskCounts.open} open · ${taskCounts.claimed} claimed · ${taskCounts.blocked} blocked · ${taskCounts.done} done.`,
+      ...tasks.slice(-10).map((t) => `- ${t.id} ${t.title} — ${t.status}${t.owner ? ` (${t.owner})` : ""}`),
+      "",
+      "## Open questions",
+      ...(openQuestions.length
+        ? openQuestions.map((m) => `- [${m.id}] ${m.from} -> ${m.to}: ${m.topic}`)
+        : ["- none"]),
+      ""
+    ];
+    const markdown = lines.join("\n");
+
+    const digestDir = this.path("digests");
+    await mkdir(digestDir, { recursive: true });
+    const safeProject = input.project.replace(/[^A-Za-z0-9_.-]/g, "-");
+    const path = join(digestDir, `${safeProject}-${date}.md`);
+    await writeFile(path, markdown, "utf8");
+    return { path, markdown };
+  }
+
   async getRoomStatus(preloaded?: {
     messages: RoomMessage[];
     tasks: RoomTask[];

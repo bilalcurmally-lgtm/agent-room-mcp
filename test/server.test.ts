@@ -128,6 +128,7 @@ describe("createServer", () => {
         "search_messages",
         "confirm_handoff",
         "set_status",
+        "generate_digest",
         "mark_messages_read",
         "set_active_project",
         "get_room_config",
