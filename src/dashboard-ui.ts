@@ -280,6 +280,84 @@ export const dashboardHtml = `<!doctype html>
       border-bottom: 1px solid var(--line);
       background: var(--soft-2);
     }
+    .thread-list {
+      display: grid;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .thread-list-head, .thread-row, .thread-form-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .thread-list-head { justify-content: space-between; }
+    .thread-list-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--faint);
+      text-transform: uppercase;
+    }
+    .thread-list-head button, .thread-row button, .thread-form-actions button {
+      min-height: 28px;
+      padding: 4px 9px;
+      font-size: 0.75rem;
+    }
+    .thread-rows {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .thread-row {
+      max-width: 100%;
+      min-height: 30px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--soft-2);
+      color: var(--muted);
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .thread-row[aria-current="true"] {
+      color: var(--accent-ink);
+      background: var(--accent-soft);
+      border-color: oklch(0.38 0.05 175);
+    }
+    .thread-row.closed {
+      opacity: 0.66;
+      border-style: dashed;
+    }
+    .thread-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 240px;
+    }
+    .thread-outcome, .thread-digest {
+      font-size: 0.6875rem;
+      color: var(--faint);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 220px;
+    }
+    .thread-conflict {
+      color: var(--warn);
+      font-size: 0.75rem;
+    }
+    .thread-new-form {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) minmax(180px, 2fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .thread-new-form input {
+      min-height: 32px;
+    }
+    @media (max-width: 720px) {
+      .thread-new-form { grid-template-columns: 1fr; }
+    }
     .header-progress {
       min-height: 32px;
       font-family: "IBM Plex Mono", monospace;
@@ -809,6 +887,7 @@ export const dashboardHtml = `<!doctype html>
             <button type="button" data-filter-preset="clear">Clear</button>
           </div>
           <div id="workspace-banner" class="workspace-banner warn" hidden></div>
+          <div id="thread-list" class="thread-list"></div>
         </details>
         <div id="feed" class="feed"></div>
         <form id="message-form" class="composer composer-chat">
@@ -974,6 +1053,7 @@ export const dashboardHtml = `<!doctype html>
   <button id="panel-open" type="button">Open panel</button>
   <script>
     let selectedProject = "all";
+    let selectedThread = "all";
     let searchQuery = "";
     // Keys of bodies the user has expanded ("Show full"). Survives the 5s
     // auto-refresh rebuild so an expanded message/task stays expanded.
@@ -991,6 +1071,7 @@ export const dashboardHtml = `<!doctype html>
     let activeFilterPreset = "";
     const projectSelect = document.getElementById("project");
     const workspaceBanner = document.getElementById("workspace-banner");
+    const threadList = document.getElementById("thread-list");
     const searchInput = document.getElementById("search");
     const currentUserInput = document.getElementById("current-user");
     const composerUserInput = document.getElementById("composer-user");
@@ -1504,15 +1585,17 @@ export const dashboardHtml = `<!doctype html>
 
     function updateMessageSubmitLabel() {
       const mentionHint = previewMentionRoute(messageInput.value);
+      const thread = selectedThreadRecord();
+      const threadHint = thread && selectedThread !== "all" ? " · thread: " + thread.name : "";
       if (mentionHint) {
         messageSubmit.textContent = "Send";
-        if (composerRouteHint) composerRouteHint.textContent = mentionHint + " · Enter to send";
+        if (composerRouteHint) composerRouteHint.textContent = mentionHint + threadHint + " · Enter to send";
         return;
       }
       const route = (messageTo.value || "all").trim();
       messageSubmit.textContent = route === "all" ? "Send" : "Send to " + routeLabel(route);
       if (composerRouteHint) {
-        composerRouteHint.textContent = "Enter to send · Shift+Enter for a new line · @mentions route alerts";
+        composerRouteHint.textContent = "Enter to send" + threadHint + " · Shift+Enter for a new line · @mentions route alerts";
       }
     }
 
@@ -1933,6 +2016,208 @@ export const dashboardHtml = `<!doctype html>
       return lastSnapshot?.projectRecords?.find((project) => project.id === selectedProject);
     }
 
+    function selectedThreadRecord() {
+      return lastSnapshot?.threads?.find((thread) => thread.id === selectedThread);
+    }
+
+    function threadsForSelectedProject(snapshot) {
+      if (!snapshot?.threads?.length) return [];
+      if (selectedProject === "all") return snapshot.threads;
+      if (selectedProject === "unsorted") return [];
+      return snapshot.threads.filter((thread) => thread.project === selectedProject);
+    }
+
+    function threadFileConflictMap(snapshot) {
+      const openThreads = (snapshot?.threads || []).filter((thread) => thread.status === "open");
+      const filesByThread = new Map();
+      for (const thread of openThreads) {
+        filesByThread.set(thread.id, new Set(thread.files || []));
+      }
+      for (const message of snapshot?.messages || []) {
+        if (!message.threadId || !filesByThread.has(message.threadId)) continue;
+        for (const file of message.files || []) filesByThread.get(message.threadId).add(file);
+      }
+      const conflicts = new Map();
+      for (const thread of openThreads) conflicts.set(thread.id, []);
+      for (let i = 0; i < openThreads.length; i += 1) {
+        for (let j = i + 1; j < openThreads.length; j += 1) {
+          const left = openThreads[i];
+          const right = openThreads[j];
+          const leftFiles = filesByThread.get(left.id) || new Set();
+          const rightFiles = filesByThread.get(right.id) || new Set();
+          for (const file of leftFiles) {
+            if (!rightFiles.has(file)) continue;
+            conflicts.get(left.id).push({ file, other: right.name });
+            conflicts.get(right.id).push({ file, other: left.name });
+          }
+        }
+      }
+      return conflicts;
+    }
+
+    function conflictTitle(conflicts) {
+      return conflicts.map((entry) => entry.file + " also in " + entry.other).join("\\n");
+    }
+
+    function renderThreadList(snapshot) {
+      const threads = threadsForSelectedProject(snapshot);
+      const openThreads = threads.filter((thread) => thread.status === "open");
+      const closedThreads = threads.filter((thread) => thread.status === "closed");
+      const conflictMap = threadFileConflictMap(snapshot);
+
+      threadList.replaceChildren();
+      const head = document.createElement("div");
+      head.className = "thread-list-head";
+      const title = document.createElement("div");
+      title.className = "thread-list-title";
+      title.textContent = "Threads";
+      const newButton = document.createElement("button");
+      newButton.type = "button";
+      newButton.textContent = "New thread";
+      newButton.disabled = selectedProject === "all" || selectedProject === "unsorted";
+      newButton.title = newButton.disabled ? "Pick a concrete project first" : "Create a thread in this project";
+      newButton.addEventListener("click", () => appendThreadForm());
+      head.append(title, newButton);
+      threadList.append(head);
+
+      const rows = document.createElement("div");
+      rows.className = "thread-rows";
+      rows.append(threadRow({ id: "all", name: "All messages", status: "open" }, []));
+      rows.append(...openThreads.map((thread) => threadRow(thread, conflictMap.get(thread.id) || [])));
+      threadList.append(rows);
+
+      if (closedThreads.length) {
+        const closedDetails = document.createElement("details");
+        closedDetails.className = "closed-threads";
+        const summary = document.createElement("summary");
+        summary.textContent = "Closed (" + closedThreads.length + ")";
+        const closedRows = document.createElement("div");
+        closedRows.className = "thread-rows";
+        closedRows.append(...closedThreads.map((thread) => threadRow(thread, [])));
+        closedDetails.append(summary, closedRows);
+        threadList.append(closedDetails);
+      }
+    }
+
+    function threadRow(thread, conflicts) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "thread-row" + (thread.status === "closed" ? " closed" : "");
+      row.setAttribute("aria-current", thread.id === selectedThread ? "true" : "false");
+      row.addEventListener("click", async () => {
+        selectedThread = thread.id;
+        await loadSnapshot();
+      });
+
+      const name = document.createElement("span");
+      name.className = "thread-name";
+      name.textContent = thread.name;
+      row.append(name);
+
+      if (conflicts.length) {
+        const badge = document.createElement("span");
+        badge.className = "thread-conflict";
+        badge.textContent = "⚠";
+        badge.title = conflictTitle(conflicts);
+        row.append(badge);
+      }
+
+      if (thread.status === "closed") {
+        const outcome = document.createElement("span");
+        outcome.className = "thread-outcome";
+        outcome.textContent = thread.outcome ? " · " + thread.outcome : "";
+        row.append(outcome);
+        if (thread.digestPath) {
+          const digest = document.createElement("span");
+          digest.className = "thread-digest";
+          digest.textContent = " · " + thread.digestPath;
+          row.append(digest);
+        }
+      }
+
+      if (thread.id === selectedThread && thread.status === "open" && thread.id !== "all") {
+        const close = document.createElement("span");
+        close.textContent = "Close";
+        close.title = "Close thread";
+        close.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const outcome = window.prompt("Thread outcome");
+          if (!outcome?.trim()) return;
+          const response = await fetch("/api/threads/close", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ threadId: thread.id, outcome: outcome.trim() })
+          });
+          if (!response.ok) {
+            await alertResponseError(response);
+            return;
+          }
+          selectedThread = "all";
+          await loadSnapshot();
+        });
+        row.append(close);
+      }
+
+      return row;
+    }
+
+    function appendThreadForm() {
+      threadList.querySelector(".thread-new-form")?.remove();
+      const form = document.createElement("form");
+      form.className = "thread-new-form";
+      const name = document.createElement("input");
+      name.placeholder = "Thread name";
+      const goal = document.createElement("input");
+      goal.placeholder = "Goal (optional)";
+      const actions = document.createElement("div");
+      actions.className = "thread-form-actions";
+      const create = document.createElement("button");
+      create.type = "submit";
+      create.textContent = "Create";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => form.remove());
+      actions.append(create, cancel);
+      form.append(name, goal, actions);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!name.value.trim()) return;
+        const response = await fetch("/api/threads", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            project: selectedProject,
+            name: name.value.trim(),
+            goal: goal.value.trim() || undefined
+          })
+        });
+        if (!response.ok) {
+          await alertResponseError(response);
+          return;
+        }
+        const thread = await response.json();
+        selectedThread = thread.id;
+        await loadSnapshot();
+      });
+      threadList.append(form);
+      name.focus();
+    }
+
+    async function alertResponseError(response) {
+      let message = "Request failed: " + response.status;
+      try {
+        const body = await response.json();
+        if (body?.error) message = body.error;
+      } catch {
+        try {
+          message = await response.text();
+        } catch {}
+      }
+      window.alert(message);
+    }
+
     function formatBytes(size) {
       if (!size) return "";
       if (size < 1024) return size + " B";
@@ -2120,7 +2405,7 @@ export const dashboardHtml = `<!doctype html>
     }
 
     function feedSignature(messages) {
-      return selectedProject + "|" + messages
+      return selectedProject + "|" + selectedThread + "|" + messages
         .map((m) => m.id + ":" + m.time + ":" + (m.body ? m.body.length : 0) + ":" + (m.status || "") + ":" + (m.phase || ""))
         .join(",");
     }
@@ -2199,6 +2484,8 @@ export const dashboardHtml = `<!doctype html>
       nonCompliantMessageIds = new Set(protocolWarningById.keys());
       renderSelect(snapshot);
       renderWorkspaceBanner(snapshot);
+      renderThreadList(snapshot);
+      updateMessageSubmitLabel();
       renderProgress(snapshot.progress);
       renderStatus(snapshot.status, snapshot.agents);
       feedSummary.textContent = snapshot.messages.length
@@ -2347,12 +2634,14 @@ export const dashboardHtml = `<!doctype html>
       if (filterAgent) params.set("actor", filterAgent);
       if (filterSince) params.set("since", filterSince);
       if (filterUntil) params.set("until", filterUntil);
+      if (selectedThread !== "all") params.set("thread", selectedThread);
       const response = await fetch("/api/snapshot?" + params.toString());
       renderSnapshot(await response.json());
     }
 
     projectSelect.addEventListener("change", async () => {
       selectedProject = projectSelect.value;
+      selectedThread = "all";
       const record = lastSnapshot?.projectRecords?.find((project) => project.id === selectedProject);
       if (record) await saveActiveProject(record.id);
       await loadSnapshot();
@@ -2487,6 +2776,7 @@ export const dashboardHtml = `<!doctype html>
       const phase = messagePhase.value.trim();
       const next = messageNext.value.trim();
       const attachmentIds = pendingAttachmentIds.length ? pendingAttachmentIds.slice() : undefined;
+      const threadId = selectedThread !== "all" ? selectedThread : undefined;
 
       // Clear the composer immediately so Enter feels instant — the network
       // round-trip below happens after the UI has already reset. Restore the
@@ -2510,10 +2800,14 @@ export const dashboardHtml = `<!doctype html>
             status: status || undefined,
             phase: phase || undefined,
             next: next || undefined,
+            threadId,
             attachmentIds
           })
         });
-        if (!response.ok) throw new Error("post failed: " + response.status);
+        if (!response.ok) {
+          await alertResponseError(response);
+          throw new Error("post failed: " + response.status);
+        }
       } catch (error) {
         messageInput.value = body;
         return;

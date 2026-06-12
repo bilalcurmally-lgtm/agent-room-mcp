@@ -14,6 +14,7 @@ import {
   type RoomProject,
   type RoomStatus,
   type RoomTask,
+  type RoomThread,
   type StaleItemWarning,
   type StaleTaskWarning
 } from "./store.js";
@@ -56,6 +57,7 @@ export interface WorkspaceInfo {
 
 interface Snapshot {
   selectedProject: string;
+  selectedThread: string;
   search: string;
   actor: string;
   since: string;
@@ -68,6 +70,7 @@ interface Snapshot {
   status: RoomStatus;
   projects: string[];
   projectRecords: RoomProject[];
+  threads: RoomThread[];
   messages: SnapshotMessage[];
   tasks: RoomTask[];
   staleTasks: StaleTaskWarning[];
@@ -90,6 +93,7 @@ interface SnapshotFilters {
   actor: string;
   since: string;
   until: string;
+  thread: string;
 }
 
 export async function startDashboardServer(options: DashboardOptions): Promise<DashboardServer> {
@@ -219,7 +223,8 @@ async function routeRequest(
         search: url.searchParams.get("q") ?? "",
         actor: url.searchParams.get("actor") ?? "",
         since: url.searchParams.get("since") ?? "",
-        until: url.searchParams.get("until") ?? ""
+        until: url.searchParams.get("until") ?? "",
+        thread: url.searchParams.get("thread") ?? "all"
       })
     );
     return;
@@ -284,6 +289,8 @@ async function routeRequest(
       status: optionalString(body.status),
       next: optionalString(body.next),
       phase: optionalString(body.phase),
+      threadId: optionalString(body.threadId),
+      files: optionalStringArray(body.files),
       attachmentIds: optionalStringArray(body.attachmentIds),
       links: optionalAttachmentLinks(body.links)
     });
@@ -323,6 +330,32 @@ async function routeRequest(
         body.activeProject === null ? null : optionalString(body.activeProject)
     });
     sendJson(response, 200, config);
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/threads") {
+    const body = await readJsonBody(request);
+    const thread = await store.createThread({
+      project: requireString(body.project, "project"),
+      name: requireString(body.name, "name"),
+      goal: optionalString(body.goal),
+      files: optionalStringArray(body.files)
+    });
+    sendJson(response, 201, thread);
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/threads/close") {
+    const body = await readJsonBody(request);
+    try {
+      const thread = await store.closeThread({
+        threadId: requireString(body.threadId, "threadId"),
+        outcome: requireString(body.outcome, "outcome")
+      });
+      sendJson(response, 200, thread);
+    } catch (error) {
+      throw new HttpError(400, error instanceof Error ? error.message : String(error));
+    }
     return;
   }
 
@@ -443,6 +476,7 @@ async function createSnapshot(
   const allTasks = await store.listTasks();
   const decisions = await store.listDecisions();
   const agents = await store.listAgents();
+  const threads = await store.listThreads();
   const tasks =
     projectFilter && projectFilter !== "unsorted"
       ? allTasks.filter((task) => task.project === projectFilter)
@@ -459,11 +493,12 @@ async function createSnapshot(
   const staleDecisions = await store.listStaleDecisions(staleOptions, decisions);
   const roomTime = createRoomTime();
   const projectMessages = filterProject(messages, selectedProject);
+  const feedMessages = filterThreadMessages(projectMessages, filters.thread);
   const projectTasks = filterProject(tasks, selectedProject);
   const projectStaleTasks = filterProject(staleTasks, selectedProject);
   const projectProtocolWarnings = protocolWarningsForMessages(projectMessages);
   const projectDecisions = filterProject(decisions, selectedProject);
-  const filteredMessages = filterDateRange(filterActor(projectMessages, filters.actor, messageActorText), dateRange, [
+  const filteredMessages = filterDateRange(filterActor(feedMessages, filters.actor, messageActorText), dateRange, [
     messageTime
   ]);
   const filteredTasks = filterDateRange(filterActor(projectTasks, filters.actor, taskActorText), dateRange, [
@@ -498,6 +533,7 @@ async function createSnapshot(
 
   return {
     selectedProject,
+    selectedThread: filters.thread,
     search: filters.search,
     actor: filters.actor,
     since: filters.since,
@@ -519,6 +555,7 @@ async function createSnapshot(
     status,
     projects: await store.listProjects(),
     projectRecords,
+    threads,
     messages: enrichMessages(filterSearch(filteredMessages, filters.search, messageSearchText), roomTime),
     tasks: filterSearch(filteredTasks, filters.search, taskSearchText),
     staleTasks: capRecentAlerts(filterSearch(filteredStaleTasks, filters.search, staleTaskSearchText), staleTaskUpdatedTime),
@@ -777,6 +814,11 @@ function filterProject<T extends { project?: string }>(items: T[], selectedProje
   if (selectedProject === "all") return items;
   if (selectedProject === "unsorted") return items.filter((item) => !item.project);
   return items.filter((item) => item.project === selectedProject);
+}
+
+function filterThreadMessages<T extends { threadId?: string }>(items: T[], selectedThread: string): T[] {
+  if (!selectedThread || selectedThread === "all") return items;
+  return items.filter((item) => item.threadId === selectedThread || item.threadId === undefined);
 }
 
 // Roomy enough for a 5 MB attachment after ~33% base64 inflation, with headroom.

@@ -228,6 +228,113 @@ describe("dashboard server", () => {
     expect(snapshot.messages).toMatchObject([{ from: "user", to: "all", body: "Codex implement, Opus review." }]);
   });
 
+  it("returns threads and scopes snapshot messages by selected thread", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const store = await AgentRoomStore.open(roomDir);
+    const alpha = await store.createThread({ project: "agent-room-mcp", name: "Alpha thread" });
+    const beta = await store.createThread({ project: "agent-room-mcp", name: "Beta thread" });
+    await store.postMessage({
+      from: "user",
+      to: "all",
+      topic: "Room-wide",
+      body: "Unthreaded context",
+      project: "agent-room-mcp"
+    });
+    await store.postMessage({
+      from: "codex-desktop",
+      to: "all",
+      topic: "Alpha work",
+      body: "[STATUS: implementing] Alpha only. [NEXT: keep going.]",
+      project: "agent-room-mcp",
+      threadId: alpha.id
+    });
+    await store.postMessage({
+      from: "claude-opus",
+      to: "all",
+      topic: "Beta work",
+      body: "[STATUS: reviewing] Beta only. [NEXT: report.]",
+      project: "agent-room-mcp",
+      threadId: beta.id
+    });
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const snapshot = await fetch(`${server.url}/api/snapshot?project=agent-room-mcp&thread=${alpha.id}`).then((res) =>
+      res.json()
+    );
+
+    expect(snapshot.selectedThread).toBe(alpha.id);
+    expect(snapshot.threads).toMatchObject([
+      { id: alpha.id, name: "Alpha thread", status: "open" },
+      { id: beta.id, name: "Beta thread", status: "open" }
+    ]);
+    expect(snapshot.messages.map((message: { topic: string }) => message.topic)).toEqual(["Room-wide", "Alpha work"]);
+  });
+
+  it("creates and closes threads from the dashboard API", async () => {
+    const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
+    const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
+    servers.push(server);
+
+    const createResponse = await fetch(`${server.url}/api/threads`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "agent-room-mcp",
+        name: "Threads UI",
+        goal: "Wire the dashboard",
+        files: ["src/dashboard-ui.ts"]
+      })
+    });
+    expect(createResponse.status).toBe(201);
+    const created = await createResponse.json();
+    expect(created).toMatchObject({
+      project: "agent-room-mcp",
+      name: "Threads UI",
+      goal: "Wire the dashboard",
+      files: ["src/dashboard-ui.ts"],
+      status: "open"
+    });
+
+    const messageResponse = await fetch(`${server.url}/api/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        from: "codex-desktop",
+        body: "[STATUS: implementing] Threaded post. [NEXT: close it.]",
+        project: "agent-room-mcp",
+        threadId: created.id,
+        files: ["src/dashboard-ui.ts"]
+      })
+    });
+    expect(messageResponse.status).toBe(201);
+    await expect(messageResponse.json()).resolves.toMatchObject({
+      threadId: created.id,
+      files: ["src/dashboard-ui.ts"]
+    });
+
+    const closeResponse = await fetch(`${server.url}/api/threads/close`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ threadId: created.id, outcome: "Sidebar shipped." })
+    });
+    expect(closeResponse.status).toBe(200);
+    await expect(closeResponse.json()).resolves.toMatchObject({
+      id: created.id,
+      status: "closed",
+      outcome: "Sidebar shipped.",
+      digestPath: expect.stringContaining(created.id)
+    });
+
+    const unknownResponse = await fetch(`${server.url}/api/threads/close`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ threadId: "thread-999999", outcome: "Nope." })
+    });
+    expect(unknownResponse.status).toBe(400);
+    await expect(unknownResponse.json()).resolves.toMatchObject({ error: expect.stringContaining("thread-999999") });
+  });
+
   it("preserves explicit HTTP message identity and routing", async () => {
     const roomDir = await mkdtemp(join(tmpdir(), "agent-room-dashboard-"));
     const server = await startDashboardServer({ roomDir, port: 0, openBrowser: false });
