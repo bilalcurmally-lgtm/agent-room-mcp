@@ -68,9 +68,9 @@ describe("ping/watch integration", () => {
     await server.close();
   });
 
-  it("resolves wake command to wake-agent.ps1", () => {
+  it("resolves wake command to wake-agent.mjs", () => {
     const command = defaultWakeCommand(repoRoot);
-    expect(command).toContain("wake-agent.ps1");
+    expect(command).toContain("wake-agent.mjs");
     expect(
       resolveWatchOptions(["--wake", "--once"], {}, repoRoot)
     ).toMatchObject({ wake: true, command });

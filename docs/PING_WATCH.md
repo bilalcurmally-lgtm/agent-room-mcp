@@ -13,8 +13,14 @@ agent (agents that have called `register_agent` / joined via `check_in`).
 
 Delivery path for every client (Codex, Claude, Grok, Antigravity, Cursor, …):
 
-1. Toast via `scripts/wake-agent.ps1` → `notify-agent-room.ps1`
-2. Full ping text written to `<room>/.wake-inbox-<agent>.txt`
+1. Full ping text appended to `<room>/.wake-inbox-<agent>.txt`
+2. Best-effort desktop notification via `scripts/wake-agent.mjs`
+
+`scripts/wake-agent.mjs` is the default wake command on every platform. It reads
+`AGENT_ROOM_AGENT`, `AGENT_ROOM_PING`, and `AGENT_ROOM_DIR`; the inbox append is the durable
+delivery path and desktop notification failures fall back silently to inbox-only. The notifier
+backend is OS-specific without extra dependencies: Windows calls the existing PowerShell toast
+(`notify-agent-room.ps1`), macOS uses `osascript`, and Linux uses `notify-send`.
 
 The dashboard **Notifications** panel shows notifier status, per-agent unread counts, last
 delivery, and recent ping text.

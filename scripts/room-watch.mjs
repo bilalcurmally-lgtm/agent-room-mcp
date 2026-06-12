@@ -59,8 +59,8 @@ export function resolveSpawnPlan(profile, lastSpawnAtMs, nowMs, debounceMs, last
 }
 
 export function defaultWakeCommand(repoRoot) {
-  const wakeScript = join(repoRoot, "scripts", "wake-agent.ps1").replaceAll("\\", "/");
-  return `powershell -NoProfile -ExecutionPolicy Bypass -File "${wakeScript}"`;
+  const wakeScript = join(repoRoot, "scripts", "wake-agent.mjs").replaceAll("\\", "/");
+  return `node "${wakeScript}"`;
 }
 
 export function selectAgentNotifications(messages, agents, lastSeenByAgent, limit) {

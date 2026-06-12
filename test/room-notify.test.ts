@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectAgentNotifications, selectUnreadMessages } from "../src/room-notify.js";
+import { defaultWakeCommand, selectAgentNotifications, selectUnreadMessages } from "../src/room-notify.js";
 
 describe("room-notify", () => {
   it("selects unread routed and mention-list messages", () => {
@@ -21,5 +21,9 @@ describe("room-notify", () => {
       { agent: "grok", total: 1, messages: [{ id: "000002" }] },
       { agent: "codex-desktop", total: 2, messages: [{ id: "000001" }, { id: "000002" }] }
     ]);
+  });
+
+  it("defaults to the cross-platform Node wake script", () => {
+    expect(defaultWakeCommand("D:/projects/agent-room-mcp")).toBe('node "D:/projects/agent-room-mcp/scripts/wake-agent.mjs"');
   });
 });

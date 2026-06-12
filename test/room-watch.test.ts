@@ -78,7 +78,7 @@ describe("room-watch helpers", () => {
         ["auto"]
       )
     ).toEqual(["grok", "codex-desktop"]);
-    expect(defaultWakeCommand("D:/projects/agent-room-mcp")).toContain("wake-agent.ps1");
+    expect(defaultWakeCommand("D:/projects/agent-room-mcp")).toContain("wake-agent.mjs");
   });
 });
 

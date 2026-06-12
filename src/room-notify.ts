@@ -48,8 +48,8 @@ export interface RoomNotifierOptions {
 }
 
 export function defaultWakeCommand(repoRoot = REPO_ROOT): string {
-  const wakeScript = join(repoRoot, "scripts", "wake-agent.ps1").replaceAll("\\", "/");
-  return `powershell -NoProfile -ExecutionPolicy Bypass -File "${wakeScript}"`;
+  const wakeScript = join(repoRoot, "scripts", "wake-agent.mjs").replaceAll("\\", "/");
+  return `node "${wakeScript}"`;
 }
 
 export function selectUnreadMessages(
